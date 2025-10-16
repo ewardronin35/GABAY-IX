@@ -1,0 +1,69 @@
+/*
+ * Custom Handsontable Theme for ShadCN/UI Light & Dark Mode
+ */
+
+.ht_master, .ht_clone_top, .ht_clone_left, .ht_clone_top_left_corner {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+}
+
+.htCore {
+    background-color: hsl(var(--background));
+}
+
+/* Table Headers */
+.htCore th {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border-bottom-color: hsl(var(--border));
+    border-right-color: hsl(var(--border));
+}
+
+/* Table Cells */
+.htCore td {
+    border-bottom-color: hsl(var(--border));
+    border-right-color: hsl(var(--border));
+}
+
+/* Alternating Row Colors (Zebra Striping) */
+.htCore tbody tr:nth-of-type(even) > td {
+    background-color: hsl(var(--muted) / 0.5);
+}
+
+.htCore tbody tr:hover > td {
+    background-color: hsl(var(--accent));
+}
+
+/* Cell Selection */
+.ht__selection-border {
+    background: hsl(var(--primary)) !important;
+}
+
+.ht__active-border {
+    background: hsl(var(--primary)) !important;
+}
+
+.ht__highlight-current-row {
+    background: hsl(var(--accent)) !important;
+}
+
+.ht__highlight-current-col {
+    background: hsl(var(--accent)) !important;
+}
+
+/* Scrollbars */
+.wtHider {
+    scrollbar-color: hsl(var(--border)) hsl(var(--background));
+}
+.wtHider::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.wtHider::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+}
+.wtHider::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 10px;
+    border: 2px solid hsl(var(--background));
+}
