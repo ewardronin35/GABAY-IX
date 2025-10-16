@@ -15,7 +15,7 @@ use App\Http\Controllers\ScholarController; // <-- ADD THIS LINE
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\ItineraryController; // Make sure this is imported
 use App\Http\Controllers\TravelClaimController; // 👈 1. Import the controller
-
+use App\Http\Controllers\TesController; // <-- ADD THIS LINE
 // All your other routes are here...
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
 Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback'])->name('socialite.callback');
@@ -88,10 +88,15 @@ Route::get('/reports/generate-masterlist-pdf', [ReportController::class, 'genera
     // Master List
     Route::put('/scholars/{scholar}', [ScholarController::class, 'update'])
     ->name('scholars.update');
+
+    Route::get('/stufaps/tes-data', [TesController::class, 'getTesData'])->name('stufaps.tes-data');
+Route::post('/stufaps/update-tes-data', [TesController::class, 'updateTesData'])->name('stufaps.update-tes-data');
     });
+
+
     Route::middleware('permission:create travel claims')->group(function () {
 
-Route::get('/travel-claims', [TravelClaimController::class, 'create'])
+    Route::get('/travel-claims', [TravelClaimController::class, 'create'])
     ->name('travel-claims.create');
     });
 });

@@ -12,6 +12,7 @@ import { DatabaseGrid } from './Partials/CoschoGrid';
 import { ReportGenerator } from './Partials/ReportGenerator';
 import { MasterlistGrid } from './Partials/MasterlistGrid';
 import { OfficialHeader } from './Partials/OfficialHeader'; // ✅ Import the new header
+import TesGrid from './Partials/TesGrid'; // Import the new TesGrid component
 
 const getInitialThemeClass = (): string => {
     if (typeof window !== 'undefined' && document.documentElement) {
@@ -144,6 +145,7 @@ export default function StufapIndex({ auth, stufaps, scholarshipPrograms }: Page
                             <TabsTrigger value="masterlist">
                                 <List className="w-4 h-4 mr-2" /> Masterlist
                             </TabsTrigger>
+                            <TabsTrigger value="tes">TES</TabsTrigger> {/* Add the TES tab trigger */}
                         </TabsList>
 
                          <TabsContent value="database" className="space-y-4">
@@ -158,6 +160,9 @@ export default function StufapIndex({ auth, stufaps, scholarshipPrograms }: Page
                         <TabsContent value="reports">{ <ReportGenerator />}</TabsContent>
                         
                         <TabsContent value="masterlist">{<MasterlistGrid tableClassName={tableClassName} /> }</TabsContent>
+                        <TabsContent value="tes">
+                        <TesGrid /> {/* Add the TES tab content */}
+                    </TabsContent>
                     </Tabs>
                 </div>
             </div>

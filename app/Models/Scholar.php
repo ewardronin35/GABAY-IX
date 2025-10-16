@@ -51,4 +51,8 @@ class Scholar extends Model
     {
         return $this->hasMany(AcademicYear::class);
     }
+    public function tes(): HasOne
+    {
+        return $this->hasOne(Tes::class);
+    }
 }
