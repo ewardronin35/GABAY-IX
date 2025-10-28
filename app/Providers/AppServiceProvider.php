@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\CsmpScholar; // <-- Add this
+use App\Policies\CsmpScholarPolicy; // <-- Add this
+use Illuminate\Support\Facades\Gate; // <-- Add this
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL; // <-- Make sure this is imported
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,11 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // This is the only code needed in this file.
-        // It fixes the "blank page" issue with ngrok by forcing Laravel 
-        // to generate https:// links during local development.
-        if (config('app.env') === 'local') {
-            URL::forceScheme('https');
-        }
+        // Add this line to register your policy
+        Gate::policy(CsmpScholar::class, CsmpScholarPolicy::class);
     }
 }

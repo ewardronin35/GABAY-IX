@@ -3,42 +3,70 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\PermissionRegistrar;
+use Spatie\Permission\Models\Role;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
         // Reset cached roles and permissions
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create Permissions
-        Permission::firstOrCreate(['name' => 'manage users']);
-        Permission::firstOrCreate(['name' => 'view applications']);
-        Permission::firstOrCreate(['name' => 'evaluate applications']);
-        Permission::firstOrCreate(['name' => 'approve applications']);
-        Permission::firstOrCreate(['name' => 'manage disbursements']);
-        Permission::firstOrCreate(['name' => 'view reports']);
+        // create permissions
+        $permissions = [
+            'create roles',
+            'read roles',
+            'update roles',
+            'delete roles',
+            'create users',
+            'read users',
+            'update users',
+            'delete users',
+            'create applications',
+            'read applications',
+            'update applications',
+            'delete applications',
+            'upload stufaps',
+            'read stufaps',
+            'create reports',
+            'read reports',
+            'create travel claims',
+        ];
 
-        // Create Roles and Assign Permissions
-        Role::firstOrCreate(['name' => 'User']);
+        foreach ($permissions as $permission) {
+            Permission::create(['name' => $permission]);
+        }
 
-        $recordsRole = Role::firstOrCreate(['name' => 'Records Officer']);
-        $recordsRole->givePermissionTo('view applications');
+        // --- Create Roles and Assign Existing Permissions ---
 
-        $coordinatorRole = Role::firstOrCreate(['name' => 'Scholarship Coordinator']);
-        $coordinatorRole->givePermissionTo(['view applications', 'evaluate applications']);
+        // Create the Super Admin role
+        $superAdminRole = Role::create(['name' => 'Super Admin']);
         
-        $accountingRole = Role::firstOrCreate(['name' => 'Accounting Officer']);
-        $accountingRole->givePermissionTo(['manage disbursements', 'view reports']);
+        // Assign all permissions to the Super Admin role
+        $allPermissions = Permission::all();
+        $superAdminRole->givePermissionTo($allPermissions);
 
-        $directorRole = Role::firstOrCreate(['name' => 'Regional Director']);
-        $directorRole->givePermissionTo(['approve applications', 'view reports']);
+        // Create an Admin role and assign specific permissions
+        $adminRole = Role::create(['name' => 'admin']);
+        $adminPermissions = [
+            'create users',
+            'read users',
+            'update users',
+            'delete users',
+            'create applications',
+            'read applications',
+            'update applications',
+            'delete applications',
+            'upload stufaps',
+            'read stufaps',
+        ];
+        $adminRole->givePermissionTo($adminPermissions);
 
-        $superAdminRole = Role::firstOrCreate(['name' => 'Super Admin']);
-        // Assign all permissions to Super Admin
-        $superAdminRole->givePermissionTo(Permission::all());
+        // Create a User role (with no permissions by default)
+        Role::create(['name' => 'user']);
     }
 }

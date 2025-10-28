@@ -10,7 +10,17 @@ class Attachment extends Model
 {
     use HasFactory;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'attachable_id',
+        'attachable_type',
+        'path',
+        'filename',
+        'mime_type',
+        'size',
+    ];
+
+  
+
 
     public function attachable(): MorphTo
     {

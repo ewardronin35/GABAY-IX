@@ -3,7 +3,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { type User } from '@/pages/Admin/Users/Columns';
 import { router } from '@inertiajs/react';
 import { route }from 'ziggy-js';
 

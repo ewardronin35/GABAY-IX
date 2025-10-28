@@ -1,5 +1,4 @@
 import { type PageProps as InertiaPageProps } from '@inertiajs/core';
-import { type User } from '@/pages/Admin/Users/Columns';
 import { type AxiosInstance } from 'axios';
 import { type route as routeFn } from 'ziggy-js';
 import { type LucideIcon } from 'lucide-react';
@@ -38,13 +37,13 @@ export interface NavGroup {
 export type Permission = string;
 export interface NavItem {
     title: string;
-    href: NonNullable<InertiaLinkProps['href']>;
-    icon?: LucideIcon | null;
+    href?: NonNullable<InertiaLinkProps['href']>; // ✅ FIX: Added '?' to make href optional
     isActive?: boolean;
     permission?: Permission; // <-- 1. ADDED THIS LINE
     prefetch?: boolean;
-    role?: string; // e.g., 'admin', 'user', etc.
+    role?: string[]; // e.g., 'admin', 'user', etc.
     children?: NavItem[];
+    icon?: LucideIcon; // ✅ ADD THIS LINE
 }
 
 export interface SharedData {

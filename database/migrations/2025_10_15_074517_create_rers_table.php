@@ -13,6 +13,12 @@ return new class extends Migration
     {
         Schema::create('rers', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('travel_claim_id')->constrained('travel_claims')->onDelete('cascade');
+            $table->unsignedSmallInteger('sheet_no')->nullable();
+            $table->decimal('total_amount', 10, 2)->nullable();
+            $table->decimal('cash_advance', 10, 2)->nullable();
+            $table->decimal('amount_reimbursed', 10, 2)->nullable();
+            $table->decimal('amount_refunded', 10, 2)->nullable();
             $table->timestamps();
         });
     }

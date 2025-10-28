@@ -143,7 +143,7 @@ const RerForm = ({ onDataChange, user }) => {
 
     // Pass all data up to the parent component
     useEffect(() => {
-        onDataChange({ receipts: receipts });
+onDataChange({ items: receipts });
     }, [receipts, onDataChange]);
 
     return (

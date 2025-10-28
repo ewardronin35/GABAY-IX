@@ -48,7 +48,7 @@ class RegisteredUserController extends Controller
             'avatar' => $avatarPath,
         ]);
 
-        $user->assignRole('Applicant'); // Assign the default "Applicant" role
+        $user->assignRole('Scholar'); // Assign the default "Applicant" role
         event(new Registered($user));
 
         Auth::login($user);

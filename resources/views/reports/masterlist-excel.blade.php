@@ -1,15 +1,17 @@
-{{-- resources/views/exports/masterlist-excel.blade.php --}}
-
-{{-- Note: No need for complex styles or public_path() here --}}
 <table>
     <thead>
         <tr>
-            <th colspan="9" style="text-align: center; font-weight: bold;">COMMISSION ON HIGHER EDUCATION</th>
+            {{-- This merged cell will act as the main title --}}
+            <th colspan="9" style="text-align: center; font-weight: bold; font-size: 14px;">COMMISSION ON HIGHER EDUCATION</th>
         </tr>
         <tr>
-            {{-- Add more header text rows as needed --}}
+            <th colspan="9" style="text-align: center; font-weight: bold; font-size: 12px;">COSCHO Scholarship Masterlist</th>
         </tr>
         <tr>
+            {{-- This row is intentionally left blank for spacing --}}
+        </tr>
+        <tr>
+            {{-- These are the actual column headers --}}
             <th>No.</th>
             <th>Region</th>
             <th>Award No.</th>
@@ -25,14 +27,14 @@
         @foreach($scholars as $index => $scholar)
             <tr>
                 <td>{{ $index + 1 }}</td>
-                <td>{{ $scholar->region }}</td>
-                <td>{{ $scholar->award_number }}</td>
-                <td>{{ $scholar->family_name }}</td>
-                <td>{{ $scholar->given_name }}</td>
-                <td>{{ $scholar->middle_name }}</td>
-                <td>{{ $scholar->sex }}</td>
-                <td>{{ $scholar->education->hei_name ?? '' }}</td>
-                <td>{{ $scholar->education->program ?? '' }}</td>
+                <td>{{ $scholar['region'] ?? '' }}</td>
+                <td>{{ $scholar['award_no'] ?? '' }}</td>
+                <td>{{ $scholar['last_name'] ?? '' }}</td>
+                <td>{{ $scholar['first_name'] ?? '' }}</td>
+                <td>{{ $scholar['middle_name'] ?? '' }}</td>
+                <td>{{ $scholar['sex'] ?? '' }}</td>
+                <td>{{ $scholar['hei'] ?? '' }}</td>
+                <td>{{ $scholar['course'] ?? '' }}</td>
             </tr>
         @endforeach
     </tbody>

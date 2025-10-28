@@ -10,6 +10,8 @@ return new class extends Migration
     {
         Schema::create('itineraries', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('travel_claim_id')->constrained('travel_claims')->onDelete('cascade');
+            $table->decimal('total_amount', 10, 2)->nullable();
             $table->string('name');
             $table->string('position');
             $table->string('official_station');

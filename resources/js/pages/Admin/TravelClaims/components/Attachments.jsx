@@ -33,12 +33,21 @@ const Attachments = ({ onUpdateFiles }) => {
                         .filter(id => id !== null);
                     onUpdateFiles(fileIds);
                 }}
-                server={{
-                    url: '/api', // Your base API URL
-                    process: '/uploads/process',
-                    revert: '/uploads/revert',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken // Use the token we fetched with JavaScript
+              server={{
+                    // By not providing a 'url' property, FilePond will
+                    // use the paths below as the full URL.
+
+                    process: {
+                        url: '/uploads/process',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        }
+                    },
+                    revert: {
+                        url: '/uploads/revert',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        }
                     }
                 }}
                 labelIdle='Drag & Drop your files or <span class="filepond--label-action">Browse</span>'

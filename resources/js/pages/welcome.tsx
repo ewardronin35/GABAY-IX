@@ -513,16 +513,23 @@ const itemVariants: Variants = {
 
             <main>
                 <section id="hero-section" className="relative isolate flex min-h-screen items-center justify-center overflow-hidden">
-                    <ParticleBackground />
-                    <motion.img src="/images/Logo.png" alt="Logo Background" className="absolute inset-0 w-full h-full object-contain opacity-[0.20] dark:opacity-[0.10] blur-[2px]" initial={{ scale: 1.1, rotate: -5 }} animate={{ scale: 1, rotate: 0 }} transition={{ duration: 1.5, ease: "circOut" }}/>
+                   
+<motion.img 
+                        src="/images/bg3.jpg" 
+                        alt="Logo Background" 
+                        className="absolute inset-0 w-full h-full object-cover opacity-95 dark:opacity-95 blur-[2px]" 
+                        initial={{ scale: 1.1, rotate: -5 }} 
+                        animate={{ scale: 1, rotate: 0 }} 
+                        transition={{ duration: 1.5, ease: "circOut" }}
+                    />
 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-50 dark:to-slate-950 -z-5"></div>
-                    <div className="relative text-center p-6 z-10 flex flex-col items-center">
-                        <motion.div variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.8 }} className="mb-4 text-sm font-bold uppercase tracking-widest text-cyan-600 dark:text-cyan-400">CHED Region IX Scholarship Portal</motion.div>
-                        <motion.h1 variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.2 }} className="text-5xl font-extrabold tracking-tight md:text-8xl bg-clip-text text-transparent bg-gradient-to-br from-slate-900 to-slate-600 dark:from-white dark:to-slate-300">FORTIS Scholarship</motion.h1>
-                        <motion.p variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.4 }} className="mt-4 max-w-2xl mx-auto text-lg md:text-xl text-slate-600 dark:text-slate-300">Your guide and assistance to building a brighter future. Apply for scholarships in the Zamboanga Peninsula.</motion.p>
+                  <div className="relative text-center p-6 z-10 flex flex-col items-center">
+                        <motion.div variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.8 }} className="mb-4 text-sm font-bold uppercase tracking-widest text-cyan-400">CHED Region IX Scholarship Portal</motion.div>
+                        <motion.h1 variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.2 }} className="text-5xl font-extrabold tracking-tight md:text-8xl bg-clip-text text-transparent bg-gradient-to-br from-white to-slate-300">FORTIS Scholarship</motion.h1>
+                        <motion.p variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.4 }} className="mt-4 max-w-2xl mx-auto text-lg md:text-xl text-slate-300">Your guide and assistance to building a brighter future. Apply for scholarships in the Zamboanga Peninsula.</motion.p>
                         <motion.div variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.6 }} className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
                             <a href="/register" className="group rounded-lg bg-cyan-600 px-8 py-3.5 font-semibold text-white shadow-lg transition hover:bg-cyan-500 hover:shadow-cyan-500/30 hover:scale-105">Apply Now <span className="inline-block transition-transform group-hover:translate-x-1">→</span></a>
-                            <a onClick={() => smoothScrollTo('about-section')} className="cursor-pointer rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm px-8 py-3.5 font-semibold text-slate-800 dark:text-white shadow-lg transition hover:scale-105 hover:bg-white dark:hover:bg-white/20">Learn More</a>
+                            <a onClick={() => smoothScrollTo('about-section')} className="cursor-pointer rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm px-8 py-3.5 font-semibold text-white shadow-lg transition hover:scale-105 hover:bg-white dark:hover:bg-white/20">Learn More</a>
                         </motion.div>
                     </div>
                 </section>

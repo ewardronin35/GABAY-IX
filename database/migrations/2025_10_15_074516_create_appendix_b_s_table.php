@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('appendix_b_s', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('travel_claim_id')->constrained('travel_claims')->onDelete('cascade');
+            $table->text('narration')->nullable();
+            $table->text('observations_recommendations')->nullable();
+            $table->date('submitted_at')->nullable();
+            $table->string('noted_by')->nullable();
             $table->timestamps();
         });
     }

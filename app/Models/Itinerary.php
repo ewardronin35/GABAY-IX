@@ -4,23 +4,48 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany; // Import this
 
 class Itinerary extends Model
 {
     use HasFactory;
 
-    protected $guarded = [];
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array
+     */
+    // ⬇️ **REPLACE THIS**
+    // protected $fillable = [
+    //     'travel_claim_id',
+    //     'total_amount',
+    // ];
+    
+    // ⬇️ **WITH THIS**
+    protected $fillable = [
+        'travel_claim_id',
+        'name',
+        'position',
+        'official_station',
+        'fund_cluster',
+        'itinerary_no',
+        'date_of_travel',
+        'purpose',
+        // 'total_amount' // You can add this back if you calculate it in the controller
+    ];
 
-    public function items(): HasMany
+    /**
+     * Get the travel claim that this itinerary belongs to.
+     */
+    public function travelClaim()
     {
-        return $this->hasMany(ItineraryItem::class);
+        return $this->belongsTo(TravelClaim::class);
     }
 
-    // Add this method for the polymorphic relationship
-    public function attachments(): MorphMany
+    /**
+     * Get the items for the itinerary.
+     */
+    public function items()
     {
-        return $this->morphMany(Attachment::class, 'attachable');
+        return $this->hasMany(ItineraryItem::class);
     }
 }

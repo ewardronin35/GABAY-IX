@@ -11,7 +11,7 @@ class Address extends Model
     use HasFactory;
 
     protected $fillable = [
-        'scholar_id', 'brgy_street', 'town_city', 'province', 'congressional_district',
+        'scholar_id', 'brgy_street', 'town_city', 'province', 'congressional_district', 'region', 'zip_code', // <-- ADD THIS
     ];
 
     public function scholar(): BelongsTo

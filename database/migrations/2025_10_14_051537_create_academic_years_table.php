@@ -13,6 +13,13 @@ return new class extends Migration
             $table->foreignId('scholar_id')->constrained()->onDelete('cascade');
             $table->string('year'); // e.g., "2023-2024"
             
+            $table->string('academic_year')->comment('e.g., 2024-2025');
+            $table->string('semester')->comment('e.g., 1st Semester, 2nd Semester');
+            $table->integer('year_level');
+            $table->integer('units_enrolled')->nullable();
+            $table->string('validation_status')->default('pending');
+            $table->string('app_no')->unique()->nullable()->comment('Application Number for this specific period');
+            
             $table->string('cy')->nullable(); // Column 'cy_2023_2024' becomes 'cy'
             $table->date('osds_date_processed')->nullable();
             $table->string('transferred_to_chedros')->nullable();
