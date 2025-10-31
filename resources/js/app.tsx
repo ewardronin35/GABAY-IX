@@ -1,13 +1,15 @@
-import './bootstrap'; // ✨ FIX: Add this line at the very top
-
+import './bootstrap'; 
 import '../css/app.css';
-import '../css/handsontable-theme.css'; // ✨ ADD THIS LINE
-
+import '../css/handsontable-theme.css'; 
+import 'filepond/dist/filepond.min.css';
+import 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.css';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
-import "sonner"; // ✅ the CSS is now automatically bundled
+
+// ✨ 1. REMOVE this import
+// import { Toaster } from "sonner"; 
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -17,12 +19,14 @@ createInertiaApp({
     setup({ el, App, props }) {
         const root = createRoot(el);
 
-        root.render(<App {...props} />);
+        // ✨ 2. RENDER THE APP NORMALLY (no fragment or Toaster)
+        root.render(
+            <App {...props} />
+        );
     },
     progress: {
         color: '#4B5563',
     },
 });
 
-// This will set light / dark mode on load...
 initializeTheme();

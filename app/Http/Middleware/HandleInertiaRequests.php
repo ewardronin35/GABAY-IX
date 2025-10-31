@@ -40,16 +40,9 @@ class HandleInertiaRequests extends Middleware
 public function share(Request $request): array
 {
     [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
-  $user = $request->user();
+    $user = $request->user();
 
-    // --- START DEBUGGING BLOCK ---
-    if ($user) {
-        Log::info('USER AUTH CHECK:', [
-            'user_id' => $user->id,
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getPermissionNames()
-        ]);
-    }
+    
     return [
         ...parent::share($request),
         'name' => config('app.name'),
@@ -59,18 +52,26 @@ public function share(Request $request): array
                 'id' => $request->user()->id,
                 'name' => $request->user()->name,
                 'email' => $request->user()->email,
-                'role' => $request->user()->getRoleNames()->first(), 
+                'roles' => $user->getRoleNames(),
                 'avatar_url' => $request->user()->avatar_url,
                 'permissions' => $request->user()->getAllPermissions()->pluck('name'),
             ] : null,
         ],
         'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         'ziggy' => function () use ($request) {
-                return array_merge((new Ziggy)->toArray(), [
-                    'location' => $request->url(),
-                    'query' => $request->query()
-                ]);
-            },
+            return array_merge((new Ziggy)->toArray(), [
+                'location' => $request->url(),
+                'query' => $request->query()
+            ]);
+        },
+
+        // --- ✨ ADD THIS BLOCK ---
+        // This checks the session for 'success' or 'error' messages
+        // and makes them available to Inertia as 'flash' props.
+        'flash' => [
+            'success' => fn () => $request->session()->get('success'),
+            'error' => fn () => $request->session()->get('error'),
+        ],
         // --- END BLOCK ---
     ];
 }

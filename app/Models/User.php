@@ -98,4 +98,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(TravelClaim::class);
     }
+    public function createdBatches(): HasMany
+{
+    return $this->hasMany(Batch::class, 'created_by_user_id');
+}
 }

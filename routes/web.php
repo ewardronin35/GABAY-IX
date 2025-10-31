@@ -23,6 +23,10 @@ use App\Http\Controllers\Scholar\ScholarController as ScholarScholarController;
 use App\Http\Controllers\Admin\CsmpAdminController; // <-- Add this
 use App\Http\Controllers\CsmpScholarController; // <-- Add this
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\GlobalAcademicPeriodController;
+use App\Http\Controllers\BatchController;
+use App\Http\Controllers\ChatbotController; // <-- Add this
+use App\Http\Controllers\FinancialRequestController;
 
 // All your other routes are here...
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
@@ -175,7 +179,31 @@ Route::get('/estat/masterlist/pdf', [EstatController::class, 'generateMasterlist
     });
 });
 
+Route::middleware(['auth', 'role:Scholarship (Unifast) Admin'])->group(function () {
+    Route::get('/admin/batches', [BatchController::class, 'adminDashboard'])->name('admin.batches.dashboard');
+    Route::get('/admin/batches/create', [BatchController::class, 'create'])->name('admin.batches.create');
+    Route::post('/admin/batches', [BatchController::class, 'store'])->name('admin.batches.store');
+});
 
+// Chief
+Route::middleware(['auth', 'role:Chief'])->group(function () {
+    Route::get('/chief/dashboard', [BatchController::class, 'chiefDashboard'])->name('chief.dashboard');
+    Route::post('/chief/batches/{batch}/endorse', [BatchController::class, 'endorse'])->name('chief.batches.endorse');
+    Route::post('/chief/batches/{batch}/return', [BatchController::class, 'returnBatch'])->name('chief.batches.return');
+});
+
+// RD (Regional Director)
+Route::middleware(['auth', 'role:RD'])->group(function () {
+    Route::get('/rd/dashboard', [BatchController::class, 'rdDashboard'])->name('rd.dashboard');
+    Route::post('/rd/batches/{batch}/approve', [BatchController::class, 'approve'])->name('rd.batches.approve');
+    Route::post('/rd/batches/{batch}/return', [BatchController::class, 'returnBatch'])->name('rd.batches.return');
+});
+
+// Cashier
+Route::middleware(['auth', 'role:Cashier'])->group(function () {
+    Route::get('/cashier/dashboard', [BatchController::class, 'cashierDashboard'])->name('cashier.dashboard');
+    Route::post('/cashier/batches/{batch}/pay', [BatchController::class, 'pay'])->name('cashier.batches.pay');
+});
 
 
 Route::get('/', function () {
@@ -189,12 +217,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/itineraries', [ItineraryController::class, 'store']);
     Route::post('/uploads/process', [UploadController::class, 'process']);
 Route::delete('/uploads/revert', [UploadController::class, 'revert']);
-
+    Route::post('/financial-request', [FinancialRequestController::class, 'store'])->name('financial.store');
+Route::get('/financial-requests', [FinancialRequestController::class, 'index'])->name('financial.index');
+Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
 });
 
 
-
-
+// --- BUDGET APPROVER ROUTES ---
+Route::middleware(['auth', 'verified', 'role:Budget'])->prefix('budget')->name('budget.')->group(function () {
+    Route::get('/dashboard', [FinancialRequestController::class, 'budgetDashboard'])->name('dashboard');
+    Route::get('/queue', [FinancialRequestController::class, 'budgetQueue'])->name('queue');
+    
+    // ✨ ADD THIS NEW ROUTE
+    Route::get('/all-requests', [FinancialRequestController::class, 'budgetAllRequests'])->name('all');
+    
+    Route::post('/requests/{financialRequest}/approve', [FinancialRequestController::class, 'budgetApprove'])->name('approve');
+    Route::post('/requests/{financialRequest}/reject', [FinancialRequestController::class, 'reject'])->name('reject');
+});
 
 Route::middleware(['auth', 'verified'])->prefix('scholar')->name('scholar.')->group(function () {
     Route::middleware('permission:view applications')->group(function () {
@@ -223,7 +262,7 @@ Route::put('/my-applications/{csmp_scholar}', [CsmpScholarController::class, 'up
 
 
 
-
+Route::post('/chat', [ChatbotController::class, 'chat'])->name('chat'); // <-- 2. Add this line
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

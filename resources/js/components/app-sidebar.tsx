@@ -2,6 +2,7 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { route } from 'ziggy-js';
+
 import {
     Sidebar,
     SidebarContent,
@@ -11,11 +12,12 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { type NavItem, type SharedData } from '@/types';
+import { type NavItem, type SharedData, type PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 
 import {
     BookOpen,
+    HandCoinsIcon,
     Folder,
     LayoutGrid,
     Files,
@@ -33,6 +35,7 @@ import {
     Database,
     HandCoins,
     ClipboardList,
+    ListChecks, 
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -40,16 +43,7 @@ const footerNavItems: NavItem[] = [
     // ...
 ];
 
-// ✨ --- 1. COMMON NAVIGATION ---
-// Items that EVERY logged-in user can see.
-const commonNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: route('dashboard'),
-        icon: LayoutGrid,
-        isActive: route().current('dashboard'),
-    },
-];
+
 
 // ✨ --- 2. ROLE-SPECIFIC NAVIGATION ---
 
@@ -194,26 +188,88 @@ const accountantNavItems: NavItem[] = [
         icon: BarChart,
     },
 ];
-
+const budgetNavItems: NavItem[] = [
+    {
+        title: 'Budget Dashboard',
+        href: route('budget.dashboard'),
+        icon: Landmark,
+        isActive: route().current('budget.dashboard'),
+    },
+    {
+        title: 'Approval Queue',
+        href: route('budget.queue'),
+        icon: ListChecks,
+        isActive: route().current('budget.queue'),
+    },
+    // ✨ ADD THIS NEW LINK
+    {
+        title: 'All Requests',
+        href: route('budget.all'),
+        icon: Files,
+        isActive: route().current('budget.all'),
+    },
+];
 // --- APP SIDEBAR COMPONENT ---
-export function AppSidebar() {
-    const { auth } = usePage<SharedData>().props;
-    const user = auth.user;
+export default function AppSidebar() { // Changed from export function AppSidebar()
+    // const user = auth.user; // We can use auth.user directly
+const { auth, ziggy } = usePage<PageProps>().props;
 
-    // ✨ --- 3. BUILD THE FINAL NAV LIST ---
-    // Start with the items everyone can see
-    let finalNavItems: NavItem[] = [...commonNavItems];
+    // ✨ 2. FIX: Move commonNavItems INSIDE the component, after usePage().
+    const commonNavItems: NavItem[] = [
+        {
+            title: 'Dashboard',
+            href: route('dashboard'),
+            icon: LayoutGrid,
+            isActive: route().current('dashboard'),
+        },
+        {
+            title: 'Financial Tracking',
+            icon: HandCoins,
+            href: '#', 
+            isActive: route().current('financial.index'), 
+            children: [
+                {
+                    title: 'All Requests',
+                    href: route('financial.index'), 
+                    // 'ziggy' is now correctly defined from the hook above
+                    isActive: route().current('financial.index') && !ziggy.query.tab,
+                },
+                {
+                    title: 'Submit Request',
+                    href: route('financial.index', { tab: 'create_new' }), 
+                    isActive: route().current('financial.index', { tab: 'create_new' }),
+                },
+            ],
+        },
+    ];
+    // --- FIX: Correctly get roles and determine primary role ---
+    // Ensure roles is treated as an array, even if undefined/null initially
+    const userRoles = (auth.user?.roles as string[]) || []; 
+    // Use the first role for the switch logic, handle cases where roles might be empty
+    const primaryRole = userRoles.length > 0 ? userRoles[0] : null; 
+
+   
+
+    let finalNavItems: NavItem[] = [...commonNavItems]; // Start with common items
 
     // Add items based on the user's role
-    switch (user?.role) {
+    switch (primaryRole) { // Use the derived primaryRole
         case 'Super Admin':
-            // Super Admin sees ALL lists combined
+            // Example: Super Admin sees common + their own + UniFast items
             finalNavItems = [
                 ...finalNavItems,
                 ...superAdminNavItems,
                 ...accountantNavItems,
-                ...scholarNavItems,
+                 ...scholarNavItems,
+                 ...budgetNavItems,
+                // ...unifastRcNavItems, 
+                // ... potentially add others like accountantNavItems if needed
             ];
+            break;
+
+        case 'UniFast RC':
+            console.log("Matched Role: UniFast RC"); // Debug
+            // finalNavItems = [...finalNavItems, ...unifastRcNavItems];
             break;
 
         case 'Scholar':
@@ -226,6 +282,12 @@ export function AppSidebar() {
             finalNavItems = [...finalNavItems, ...accountantNavItems];
             break;
 
+        case 'Budget': 
+            finalNavItems = [...finalNavItems, ...budgetNavItems];
+            break;
+    
+        
+        
         // Add more roles as needed
         // default:
         // User has no special role, they just see common items

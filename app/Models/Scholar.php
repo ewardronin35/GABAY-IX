@@ -65,5 +65,8 @@ class Scholar extends Model
     return $this->belongsTo(Program::class);
 }
 
-    // The tes() relationship is no longer needed.
+    public function batchScholars(): HasMany
+{
+    return $this->hasMany(BatchScholar::class);
+}
 }

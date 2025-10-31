@@ -23,7 +23,29 @@ const SearchIcon = ({ className = '' }: { className?: string }) => <Icon classNa
 const InfoIcon = ({ className = '' }: { className?: string }) => <Icon className={className}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></Icon>;
 const ClipboardListIcon = ({ className = '' }: { className?: string }) => <Icon className={className}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="16" y2="16" /></Icon>;
 const UsersIcon = ({ className = '' }: { className?: string }) => <Icon className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
+const ArrowRightIcon = ({ className = '' }: { className?: string }) => <Icon className={className}><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></Icon>;
+// ... (Your existing icons)
 
+const FacebookIcon = ({ className = '' }: { className?: string }) => (
+    <Icon className={className}>
+        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    </Icon>
+);
+
+const GlobeIcon = ({ className = '' }: { className?: string }) => (
+    <Icon className={className}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </Icon>
+);
+
+const MapPinIcon = ({ className = '' }: { className?: string }) => (
+    <Icon className={className}>
+        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+        <circle cx="12" cy="10" r="3" />
+    </Icon>
+);
 
 // --- Theme Management ---
 const useTheme = () => {
@@ -282,100 +304,99 @@ interface ApplicationData {
             </AnimatePresence>
         </div>
     );
-};
+};// This type definition should be *outside* (before) the component
 type MessageType = { s: 'user' | 'ai'; t: string; };
+
 // --- Gemini AI Chatbot Component ---
 const AIChatbot = () => {
     
     const [isOpen, setIsOpen] = useState(false);
- const [messages, setMessages] = useState<MessageType[]>([]);
+    const [messages, setMessages] = useState<MessageType[]>([]);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
     const [isLoading, setIsLoading] = useState(false);
-
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Effect to handle the initial greeting message from the bot
-    useEffect(() => {
-        if (isOpen && messages.length === 0) {
-            setIsLoading(true);
-            const getInitialMessage = async () => {
-                const systemPrompt = `You are "Gabby", a friendly AI assistant for the FORTIS Scholarship Portal. Your goal is to provide concise, accurate answers. You are introducing yourself for the first time. Keep it short and welcoming.`;
-                const userMessage = "Hello! Introduce yourself.";
-                try {
-                    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-                    const payload = { contents: [{ parts: [{ text: userMessage }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-                    const data = await response.json();
-                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text) {
-                            const initialMessage: MessageType = { s: 'ai', t: text }; // <-- Define the object first
-                                setMessages([initialMessage]); // <-- Then use it here
-                    } else {
-                        throw new Error("No content from API.");
-                    }
-                } catch (err) {
-                    // Fallback message in case of API error on initial load
-                    const fallbackMessage: MessageType = { s: 'ai', t: "Hello! I'm Gabby, your AI assistant. How can I help you today?" };
-setMessages([fallbackMessage]);
-                    console.error(err);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            getInitialMessage();
-        }
-    }, [isOpen]);
-
-    const handleSendMessage = async (userMessage: string) => {
-        if (!userMessage.trim() || isLoading) return;
-
-    const newUserMessage: MessageType = { s: 'user', t: userMessage };
-        const updatedMessages = [...messages, newUserMessage];
-        setMessages(updatedMessages); // Update UI immediately with the user's message
+    // This is our new, reusable function to talk to our backend
+    const getBotResponse = async (history: MessageType[]) => {
         setIsLoading(true);
 
         const systemPrompt = `You are "Gabby", a friendly AI assistant for the FORTIS Scholarship Portal. Your goal is to provide concise, accurate answers. Knowledge base:\n- About: The FORTIS system is CHED - Region IX's official platform to streamline scholarship applications in the Zamboanga Peninsula.\n- Application: 1. Create Account. 2. Complete form & upload documents. 3. Track status on your dashboard.\n- Eligibility: Advise users to go to the main page to find the 'Track Your Application' section.\n- Developer: The lead developer is Eduard Roland P. Donor. Keep answers friendly and brief.`;
         
-        // Convert the message history to the format required by the API.
-        const apiHistory = updatedMessages.map(msg => ({
+        // Convert our message state to the format the API needs
+        const apiHistory = history.map(msg => ({
             role: msg.s === 'user' ? 'user' : 'model',
             parts: [{ text: msg.t }]
         }));
 
         // The API requires conversations to start with a 'user' message.
-        // If our state starts with the AI's greeting, remove it from the API payload.
         if (apiHistory.length > 0 && apiHistory[0].role === 'model') {
-            apiHistory.shift();
+            apiHistory.shift(); // Remove the AI's first greeting if it's there
         }
 
         try {
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const payload = { contents: apiHistory, systemInstruction: { parts: [{ text: systemPrompt }] } };
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            
-            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+            // *** THIS IS THE MAIN CHANGE ***
+            // We now call our OWN /api/chat endpoint.
+            const response = await fetch('/chat', { // <--- CHANGE THIS LINE
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            // IMPORTANT: Laravel needs this CSRF token for POST requests from web.php
+            'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content 
+        },
+        // We send our history and the prompt
+        body: JSON.stringify({ 
+            history: apiHistory, 
+            systemInstruction: systemPrompt 
+        })
+    });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || `API error: ${response.statusText}`);
+            }
 
             const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            const text = data.text; // The response from our API is simpler!
 
             if (text) {
                 setMessages(prev => [...prev, { s: 'ai', t: text }]);
             } else {
                 throw new Error("No content from API.");
             }
-        } catch (err) {
-            setMessages(prev => [...prev, { s: 'ai', t: "Sorry, I'm having trouble connecting. Please try again." }]);
+
+        } catch (err: any) {
+            setMessages(prev => [...prev, { s: 'ai', t: err.message || "Sorry, I'm having trouble connecting. Please try again." }]);
             console.error(err);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Effect to handle the initial greeting message from the bot
+    useEffect(() => {
+        if (isOpen && messages.length === 0) {
+            // We create a "fake" user message to start the chat
+            const initialHistory: MessageType[] = [
+                { s: 'user', t: "Hello! Introduce yourself." }
+            ];
+            // We don't set this to state, we just use it to get the first response
+            getBotResponse(initialHistory);
+        }
+    }, [isOpen]);
+
+    const handleSendMessage = async (userMessage: string) => {
+        if (!userMessage.trim() || isLoading) return;
+
+        const newUserMessage: MessageType = { s: 'user', t: userMessage };
+        const updatedMessages = [...messages, newUserMessage];
+        
+        setMessages(updatedMessages); // Update UI immediately
+        
+        // Pass the new, updated message history to our function
+        getBotResponse(updatedMessages);
     };
 
     const predefinedQuestions = ["What is this system about?", "How to apply?", "How to check my status?", "Who is the developer?"];
@@ -434,7 +455,6 @@ setMessages([fallbackMessage]);
     );
 };
 
-
 // --- Main Page Component ---
 export default function Welcome() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -442,7 +462,6 @@ export default function Welcome() {
     const [theme, setTheme] = useTheme();
     const [currentTestimonial, setCurrentTestimonial] = useState(0);
     const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
-const smoothScrollTo = (id: string) => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); setIsMenuOpen(false); };
 
 const sectionVariants: Variants = {
     hidden: { opacity: 0, y: 50 },
@@ -474,25 +493,27 @@ const itemVariants: Variants = {
             
             <header className="fixed top-0 left-0 w-full z-50 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
                 <div className="container mx-auto flex items-center justify-between p-4">
-                    <a href="#" onClick={() => smoothScrollTo('hero-section')} className="flex items-center gap-2 cursor-pointer"><img src="/images/Logo.png" alt="FORTIS Logo" className="h-8 w-8" /><span className="font-bold text-slate-900 dark:text-white text-xl tracking-tight">FORTIS</span></a>
+                    <a href="#hero-section" className="flex items-center gap-2 cursor-pointer">
+            <img src="/images/Logo.png" alt="FORTIS Logo" className="h-8 w-8" />
+            <span className="font-bold text-slate-900 dark:text-white text-xl tracking-tight">FORTIS</span>
+        </a>
 <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
-    {/* I've updated each <a> tag to be a flex container with an icon */}
-    <a onClick={() => smoothScrollTo('about-section')} className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
-        <InfoIcon className="w-4 h-4" /> About
-    </a>
-    <a onClick={() => smoothScrollTo('how-it-works')} className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
-        <ClipboardListIcon className="w-4 h-4" /> Process
-    </a>
-    <a onClick={() => smoothScrollTo('track-section')} className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
-        <SearchIcon className="w-4 h-4" /> Track
-    </a>
-    <a onClick={() => smoothScrollTo('announcements-section')} className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
-        <NewspaperIcon className="w-4 h-4" /> Updates
-    </a>
-    <a onClick={() => smoothScrollTo('testimonials-section')} className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
-        <UsersIcon className="w-4 h-4" /> Stories
-    </a>
-</nav>
+            <a href="#about-section" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+                <InfoIcon className="w-4 h-4" /> About
+            </a>
+            <a href="#how-it-works" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+                <ClipboardListIcon className="w-4 h-4" /> Process
+            </a>
+            <a href="#track-section" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+                <SearchIcon className="w-4 h-4" /> Track
+            </a>
+            <a href="#announcements-section" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+                <NewspaperIcon className="w-4 h-4" /> Updates
+            </a>
+            <a href="#testimonials-section" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+                <UsersIcon className="w-4 h-4" /> Stories
+            </a>
+        </nav>
                     <div className="hidden md:flex items-center gap-4 text-sm">
                         <ThemeSwitcher theme={theme} setTheme={setTheme} />
                         <a href="/login" className="rounded-lg px-4 py-2 font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-slate-800">Log in</a>
@@ -501,38 +522,59 @@ const itemVariants: Variants = {
                     <div className="md:hidden"><button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-md text-slate-700 dark:text-slate-300">{isMenuOpen ? <XIcon/> : <MenuIcon/>}</button></div>
                 </div>
                 <AnimatePresence>{isMenuOpen && (<motion.div initial={{opacity: 0, height: 0}} animate={{opacity: 1, height: 'auto'}} exit={{opacity: 0, height: 0}} className="md:hidden bg-white/80 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800">
-                    <nav className="flex flex-col items-center gap-6 py-6 text-slate-700 dark:text-slate-200">
-                        <a onClick={() => smoothScrollTo('about-section')}>About</a>
-                        <a onClick={() => smoothScrollTo('how-it-works')}>Process</a>
-                        <a onClick={() => smoothScrollTo('track-section')}>Track</a>
-                        <a onClick={() => smoothScrollTo('announcements-section')}>Updates</a>
-                        <a onClick={() => smoothScrollTo('testimonials-section')}>Stories</a>
-                        <div className='flex items-center gap-4 pt-4 border-t border-slate-200 dark:border-slate-700 w-full justify-center'><a href="/login" className="rounded-lg px-4 py-2 font-medium">Log in</a><a href="/register" className="rounded-lg bg-cyan-600 px-4 py-2 font-medium text-white">Register</a></div><ThemeSwitcher theme={theme} setTheme={setTheme} />
-                    </nav></motion.div>)}</AnimatePresence>
+                   {/* Find this <nav> block in your mobile menu */}
+<nav className="flex flex-col items-center gap-6 py-6 text-slate-700 dark:text-slate-200">
+    {/* REPLACE your 'a' tags with these: */}
+    <a href="#about-section" onClick={() => setIsMenuOpen(false)} className="cursor-pointer">About</a>
+    <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="cursor-pointer">Process</a>
+    <a href="#track-section" onClick={() => setIsMenuOpen(false)} className="cursor-pointer">Track</a>
+    <a href="#announcements-section" onClick={() => setIsMenuOpen(false)} className="cursor-pointer">Updates</a>
+    <a href="#testimonials-section" onClick={() => setIsMenuOpen(false)} className="cursor-pointer">Stories</a>
+    
+    {/* ... the rest of the mobile menu ... */}
+</nav></motion.div>)}</AnimatePresence>
             </header>
 
             <main>
-                <section id="hero-section" className="relative isolate flex min-h-screen items-center justify-center overflow-hidden">
-                   
-<motion.img 
-                        src="/images/bg3.jpg" 
-                        alt="Logo Background" 
-                        className="absolute inset-0 w-full h-full object-cover opacity-95 dark:opacity-95 blur-[2px]" 
-                        initial={{ scale: 1.1, rotate: -5 }} 
-                        animate={{ scale: 1, rotate: 0 }} 
-                        transition={{ duration: 1.5, ease: "circOut" }}
-                    />
-<div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-50 dark:to-slate-950 -z-5"></div>
-                  <div className="relative text-center p-6 z-10 flex flex-col items-center">
-                        <motion.div variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.8 }} className="mb-4 text-sm font-bold uppercase tracking-widest text-cyan-400">CHED Region IX Scholarship Portal</motion.div>
-                        <motion.h1 variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.2 }} className="text-5xl font-extrabold tracking-tight md:text-8xl bg-clip-text text-transparent bg-gradient-to-br from-white to-slate-300">FORTIS Scholarship</motion.h1>
-                        <motion.p variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.4 }} className="mt-4 max-w-2xl mx-auto text-lg md:text-xl text-slate-300">Your guide and assistance to building a brighter future. Apply for scholarships in the Zamboanga Peninsula.</motion.p>
-                        <motion.div variants={itemVariants} initial="hidden" animate="visible" transition={{ delay: 0.6 }} className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-                            <a href="/register" className="group rounded-lg bg-cyan-600 px-8 py-3.5 font-semibold text-white shadow-lg transition hover:bg-cyan-500 hover:shadow-cyan-500/30 hover:scale-105">Apply Now <span className="inline-block transition-transform group-hover:translate-x-1">→</span></a>
-                            <a onClick={() => smoothScrollTo('about-section')} className="cursor-pointer rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm px-8 py-3.5 font-semibold text-white shadow-lg transition hover:scale-105 hover:bg-white dark:hover:bg-white/20">Learn More</a>
-                        </motion.div>
-                    </div>
-                </section>
+{/* --- Hero Section --- */}
+<section id="hero-section" className="relative h-screen flex items-center justify-center overflow-hidden">
+    {/* Particle background always on top of the image, below the text */}
+    <ParticleBackground /> 
+
+    {/* Background Image */}
+    <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        transition={{ duration: 1 }} 
+        className="absolute inset-0 bg-cover bg-center" 
+        style={{ backgroundImage: 'url("/images/bg3.jpg")' }} 
+    />
+
+    {/* Image Overlay */}
+    {/* This div adds a semi-transparent dark layer over the image */}
+    <div className="absolute inset-0 bg-black/40 dark:bg-black/60"></div>
+
+    {/* Main Content (now layered on top of the overlay) */}
+   <div className="relative z-10 text-center p-6 max-w-4xl mx-auto">
+    <motion.p initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5, duration: 0.8 }} className="text-base md:text-lg font-semibold uppercase tracking-wider mb-3 text-cyan-300 dark:text-cyan-400">
+        CHED REGION IX SCHOLARSHIP PORTAL
+    </motion.p>
+    <motion.h1 initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.7, duration: 0.8 }} className="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-6 drop-shadow-lg">
+        FORTIS Scholarship
+    </motion.h1>
+    <motion.p initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.9, duration: 0.8 }} className="text-xl md:text-2xl text-slate-100 dark:text-slate-200 mb-8 max-w-2xl mx-auto drop-shadow-md">
+        Your guide and assistance to building a brighter future. Apply or scholarships in the Zamboanga Peninsula.
+    </motion.p>
+    <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 1.1, duration: 0.8 }} className="flex justify-center gap-4">
+        <a href="/register" className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-4 px-10 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 text-lg">
+            Apply Now <ArrowRightIcon className="inline-block w-5 h-5 ml-2" />
+        </a>
+        <a href="#about-section" className="bg-white/20 hover:bg-white/30 text-white font-semibold py-4 px-10 rounded-lg shadow-lg transition-all duration-300 transform hover:scale-105 text-lg">
+            Learn More
+        </a>
+    </motion.div>
+</div>
+</section>
                 
                 <motion.section id="about-section" className="py-24 sm:py-32" variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
                     <div className="container mx-auto px-6">
@@ -612,16 +654,68 @@ const itemVariants: Variants = {
                     <div className="container mx-auto text-center"><motion.h2 variants={itemVariants} className="text-3xl font-bold tracking-tight sm:text-5xl">Ready to Start Your Journey?</motion.h2><motion.p variants={itemVariants} className="mt-4 max-w-2xl mx-auto text-lg text-cyan-100">Don't miss the opportunity to secure your future. Create an account and apply today.</motion.p><motion.div variants={itemVariants} className="mt-10"><a href="/register" className="rounded-lg bg-white px-8 py-3.5 font-semibold text-cyan-700 shadow-2xl transition-transform hover:scale-105 hover:bg-slate-50">Create My Account</a></motion.div></div>
                 </motion.section>
             </main>
+<footer className="bg-slate-950 text-slate-400 py-16 px-6">
+    <div className="container mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+        
+        {/* Column 1: Brand & About */}
+        <div className="md:col-span-2">
+            <div className="flex items-center gap-2 mb-4">
+                <img src="/images/Logo.png" alt="FORTIS Logo" className="h-10 w-10" />
+                <span className="font-bold text-white text-2xl tracking-tight">FORTIS</span>
+            </div>
+            <p className="text-sm max-w-md">
+                The FORTIS system is CHED - Region IX's official platform to streamline scholarship applications and empower students in the Zamboanga Peninsula.
+            </p>
+        </div>
 
-            <footer className="bg-slate-950 text-slate-400 py-16 px-6">
-                <div className="container mx-auto text-center">
-                    <img src="/images/Logo.png" alt="FORTIS Logo" className="h-10 w-10 mx-auto mb-4" />
-                    <p className="font-semibold text-white">Commission on Higher Education - Region IX</p>
-                    <p className="text-sm mt-2">&copy; {new Date().getFullYear()} FORTIS Scholarship Management System. All rights reserved.</p>
+        {/* Column 2: Quick Links */}
+        {/* Column 2: Quick Links */}
+<div>
+    <h3 className="font-semibold text-white text-lg mb-4">Quick Links</h3>
+    <nav className="flex flex-col gap-3">
+        {/* These are the correct, simple links for the footer */}
+        <a href="#about-section" className="hover:text-cyan-400 transition">About</a>
+        <a href="#how-it-works" className="hover:text-cyan-400 transition">Process</a>
+        <a href="#track-section" className="hover:text-cyan-400 transition">Track Application</a>
+        <a href="#announcements-section" className="hover:text-cyan-400 transition">Updates</a>
+        <a href="#testimonials-section" className="hover:text-cyan-400 transition">Scholar Stories</a>
+    </nav>
+</div>
+
+        {/* Column 3: Contact & Socials */}
+        <div>
+            <h3 className="font-semibold text-white text-lg mb-4">Contact & Follow</h3>
+            <div className="flex flex-col gap-3">
+                <a href="https://chedro9.ph" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-cyan-400 transition">
+                    <GlobeIcon className="w-5 h-5" />
+                    chedro9.ph
+                </a>
+                <a href="https://www.facebook.com/CHEDZAMPEN" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-cyan-400 transition">
+                    <FacebookIcon className="w-5 h-5" />
+                    Facebook
+                </a>
+                <div className="flex items-start gap-2 mt-2">
+                    <MapPinIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">
+                        2nd Floor, V.H.S. Bldg., Veterans Ave., Zamboanga City, Philippines
+                    </span>
                 </div>
-            </footer>
-            
-            <AIChatbot />
+            </div>
+        </div>
+    </div>
+    
+    {/* Copyright Bar */}
+    <div className="container mx-auto text-center border-t border-slate-700 pt-8 mt-12">
+        <p className="text-sm">
+            &copy; {new Date().getFullYear()} FORTIS Scholarship Management System. All rights reserved.
+        </p>
+        <p className="text-xs mt-2">
+            Developed by CHED - Region IX.
+        </p>
+    </div>
+</footer>
+
+<AIChatbot />
         </div>
     );
 }

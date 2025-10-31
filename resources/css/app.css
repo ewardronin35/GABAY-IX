@@ -295,3 +295,7 @@ html {
     @apply bg-background text-foreground;
     }
 }
+/* In src/index.css */
+html {
+  scroll-behavior: smooth;
+}

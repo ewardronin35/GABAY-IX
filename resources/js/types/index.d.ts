@@ -9,6 +9,11 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     auth: {
         user: User | null;
     };
+    flash?: {
+        success?: string;
+        error?: string;
+    };
+    ziggy: Config & { location: string; query: { tab?: string } };
     [key: string]: unknown;
 };
 
@@ -18,8 +23,27 @@ declare global {
         Echo: Echo;
         Pusher: any;
     }
+}export interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
 }
 
+export interface Paginator<T> {
+    data: T[];
+    links: PaginationLink[];
+    current_page: number;
+    first_page_url: string;
+    from: number;
+    last_page: number;
+    last_page_url: string;
+    next_page_url: string | null;
+    path: string;
+    per_page: number;
+    prev_page_url: string | null;
+    to: number;
+    total: number;
+}
 export interface Auth {
     user: User | null; // User can be null if not logged in
 }
@@ -45,7 +69,30 @@ export interface NavItem {
     children?: NavItem[];
     icon?: LucideIcon; // ✅ ADD THIS LINE
 }
-
+export interface Attachment {
+    id: number;
+    user_id: number;
+    filepath: string;
+    filename: string;
+    disk: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface FullFinancialRequest {
+    id: number;
+    title: string;
+    request_type: string;
+    amount: number;
+    description: string;
+    status: string;
+    remarks: string | null;
+    created_at: string;
+    budget_approved_at: string | null;
+    accounting_approved_at: string | null;
+    cashier_paid_at: string | null;
+    user: User; // The full user object
+    attachments: Attachment[]; // An array of attachment objects
+}
 export interface SharedData {
     name: string;
     quote: { message: string; author: string };

@@ -13,10 +13,12 @@ class Attachment extends Model
     protected $fillable = [
         'attachable_id',
         'attachable_type',
-        'path',
+        'filepath',
         'filename',
         'mime_type',
         'size',
+        'user_id', // ✨ ADD THIS
+        'disk',    // ✨ ADD THIS
     ];
 
   
