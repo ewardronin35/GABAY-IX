@@ -173,21 +173,19 @@ const scholarNavItems: NavItem[] = [
 // Items for 'Accountant' (or other finance roles)
 const accountantNavItems: NavItem[] = [
     {
-        title: 'Budget Track',
-        href: '#', // Placeholder
+        title: 'My Queue',
+        href: route('accounting.all-requests', { status: 'pending_accounting' }),
         icon: Landmark,
     },
     {
-        title: 'Accounting',
-        href: '#', // Placeholder
+        title: 'Requests & Reports',
+        href: route('accounting.all-requests'),
         icon: PhilippinePeso,
     },
-    {
-        title: 'Reports',
-        href: '#', // Placeholder
-        icon: BarChart,
-    },
+    // The "Reports" link is removed because it is now a tab
+    // inside the "Requests & Reports" page.
 ];
+
 const budgetNavItems: NavItem[] = [
     {
         title: 'Budget Dashboard',
@@ -195,19 +193,29 @@ const budgetNavItems: NavItem[] = [
         icon: Landmark,
         isActive: route().current('budget.dashboard'),
     },
-    {
-        title: 'Approval Queue',
-        href: route('budget.queue'),
-        icon: ListChecks,
-        isActive: route().current('budget.queue'),
-    },
+  
     // ✨ ADD THIS NEW LINK
     {
         title: 'All Requests',
-        href: route('budget.all'),
+        href: route('budget.all-requests'),
         icon: Files,
-        isActive: route().current('budget.all'),
+        isActive: route().current('budget.all-requests'),
     },
+];
+
+const cashierNavItems: NavItem[] = [
+    {
+        title: 'My Queue',
+        href: route('cashier.all-requests', { status: 'pending_cashier' }),
+        icon: Landmark,
+    },
+    {
+        title: 'Requests & Reports',
+        href: route('cashier.all-requests'),
+        icon: PhilippinePeso,
+    },
+    // The "Reports" link is removed because it is now a tab
+    // inside the "Requests & Reports" page.
 ];
 // --- APP SIDEBAR COMPONENT ---
 export default function AppSidebar() { // Changed from export function AppSidebar()
@@ -277,13 +285,16 @@ const { auth, ziggy } = usePage<PageProps>().props;
             finalNavItems = [...finalNavItems, ...scholarNavItems];
             break;
 
-        case 'Accountant': // Example of another role
+        case 'Accounting': // Example of another role
             // Accountant sees common items + their own
             finalNavItems = [...finalNavItems, ...accountantNavItems];
             break;
 
         case 'Budget': 
             finalNavItems = [...finalNavItems, ...budgetNavItems];
+            break;
+        case 'Cashier': 
+            finalNavItems = [...finalNavItems, ...cashierNavItems];
             break;
     
         

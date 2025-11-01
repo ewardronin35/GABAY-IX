@@ -16,6 +16,7 @@ export function PaginationLinks({ links }: { links: PageLink[] }) {
 
     const handlePrefetch = (url: string | null) => {
         if (!url) return;
+        // ✨ No change to prefetch
         router.get(url, {}, { preserveState: true, preserveScroll: true });
     };
 
@@ -24,7 +25,9 @@ export function PaginationLinks({ links }: { links: PageLink[] }) {
             {links.map((link, index) => (
                 <Button
                     key={index}
-                    onClick={() => link.url && router.get(link.url, {}, { preserveState: true, preserveScroll: true })}
+                    // ✨ FIX: Changed preserveScroll to false
+                    // This tells Inertia to visit the URL, keep the filters, but scroll to the top.
+                    onClick={() => link.url && router.get(link.url, {}, { preserveState: true, preserveScroll: false })}
                     onMouseEnter={() => handlePrefetch(link.url)}
                     disabled={!link.url}
                     size="sm"

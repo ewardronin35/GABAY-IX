@@ -13,7 +13,7 @@ import { formatDistanceToNow, differenceInCalendarDays, format } from 'date-fns'
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Eye, ArrowUp, ArrowDown, Download, } from "lucide-react";
 // ✨ 1. Import your new BudgetApprovalSheet
-import { BudgetApprovalSheet } from "./BudgetApprovalSheet"; 
+import { AccountingApprovalSheet } from "./AccountingApprovalSheet";
 import { PaginationLinks } from "@/components/ui/PaginationLinks";
 import { pickBy } from 'lodash';
 import { type VariantProps } from "class-variance-authority";
@@ -91,7 +91,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
     const handleSheetOpenChange = (open: boolean) => {
         if (!open) {
             // Use activeFilters to preserve state when closing modal
-            router.get(route('budget.all-requests'), activeFilters, { 
+           router.get(route('accounting.all-requests'), activeFilters, { 
                 preserveState: true, 
                 preserveScroll: true 
             });
@@ -126,7 +126,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
         const { sort, direction, ...filterValues } = activeFilters;
         const cleanFilters = pickBy(filterValues);
         
-        router.get(route('budget.all-requests'), cleanFilters, { 
+       router.get(route('accounting.all-requests'), cleanFilters, { 
             preserveState: true, 
             preserveScroll: false 
         });
@@ -142,7 +142,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
         // When sorting, we must include all other active filters
         const newFilters = pickBy({ ...activeFilters, sort: newSort, direction: newDirection });
         
-        router.get(route('budget.all-requests'), newFilters, { 
+        router.get(route('accounting.all-requests'), newFilters, { 
             preserveState: true, 
             preserveScroll: false 
         });
@@ -151,8 +151,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
     // Modal view handler
     const handleViewRequest = (id: number) => {
         // Pass active filters so they are preserved when opening/closing the modal
-        router.get(route('budget.all-requests.show', id), activeFilters, { preserveState: true });
-    };
+router.get(route('accounting.all-requests.show', id), activeFilters, { preserveState: true });    };
 
     // This helper passes the correct (non-sort) filters to the Report component
     const getReportFilters = (): ReportFilters => {
@@ -180,8 +179,10 @@ export default function AllRequests({ auth, requests, charts, filters, request }
                             {/* Quick status buttons */}
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button 
-                                    variant={activeFilters.status === 'pending_budget' ? 'default' : 'outline'} 
-                                    onClick={() => setFilter('status', 'pending_budget')}
+                                    // ✨ FIX: Check for 'pending_accounting'
+                                    variant={activeFilters.status === 'pending_accounting' ? 'default' : 'outline'} 
+                                    // ✨ FIX: Set 'pending_accounting'
+                                    onClick={() => setFilter('status', 'pending_accounting')}
                                 >
                                     My Queue
                                 </Button>
@@ -325,7 +326,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
             <Sheet open={isSheetOpen} onOpenChange={handleSheetOpenChange}>
                 <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
                     {request ? (
-                        <BudgetApprovalSheet request={request} />
+                       <AccountingApprovalSheet request={request} />
                     ) : (
                         <p>Loading...</p>
                     )}

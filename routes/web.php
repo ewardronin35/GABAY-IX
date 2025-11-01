@@ -200,9 +200,27 @@ Route::middleware(['auth', 'role:RD'])->group(function () {
 });
 
 // Cashier
-Route::middleware(['auth', 'role:Cashier'])->group(function () {
-    Route::get('/cashier/dashboard', [BatchController::class, 'cashierDashboard'])->name('cashier.dashboard');
-    Route::post('/cashier/batches/{batch}/pay', [BatchController::class, 'pay'])->name('cashier.batches.pay');
+Route::middleware(['auth', 'role:Cashier'])->prefix('cashier')->name('cashier.')->group(function () {
+
+    Route::get('/dashboard', [BatchController::class, 'cashierDashboard'])->name('dashboard');
+    Route::post('/batches/{batch}/pay', [BatchController::class, 'pay'])->name('batches.pay');
+    Route::get('/all-requests', [FinancialRequestController::class, 'cashierAllRequests'])
+        ->name('all-requests');
+    Route::get('/all-requests/{financialRequest}', [FinancialRequestController::class, 'cashierAllRequests'])
+        ->name('all-requests.show');
+
+    // Action Routes
+    Route::post('/pay/{request}', [FinancialRequestController::class, 'cashierPay'])
+         ->name('pay'); // ✨ Renamed to 'pay'
+         
+    Route::post('/reject/{request}', [FinancialRequestController::class, 'reject'])
+         ->name('reject'); // Points to the same 'reject' method
+         
+    // Report & Export Routes
+    Route::get('/export/excel', [FinancialRequestController::class, 'cashierExcelExport'])
+         ->name('reports.excel');
+    Route::get('/export/pdf', [FinancialRequestController::class, 'cashierPdfExport'])
+         ->name('reports.pdf');
 });
 
 
@@ -222,17 +240,55 @@ Route::get('/financial-requests', [FinancialRequestController::class, 'index'])-
 Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
 });
 
+Route::middleware(['auth', 'role:Accounting'])->prefix('accounting')->name('accounting.')->group(function () {
+    
+    // Page & Modal Routes
+    Route::get('/all-requests', [FinancialRequestController::class, 'accountingAllRequests'])
+        ->name('all-requests');
+    Route::get('/all-requests/{financialRequest}', [FinancialRequestController::class, 'accountingAllRequests'])
+        ->name('all-requests.show');
 
-// --- BUDGET APPROVER ROUTES ---
-Route::middleware(['auth', 'verified', 'role:Budget'])->prefix('budget')->name('budget.')->group(function () {
-    Route::get('/dashboard', [FinancialRequestController::class, 'budgetDashboard'])->name('dashboard');
-    Route::get('/queue', [FinancialRequestController::class, 'budgetQueue'])->name('queue');
-    
-    // ✨ ADD THIS NEW ROUTE
-    Route::get('/all-requests', [FinancialRequestController::class, 'budgetAllRequests'])->name('all');
-    
-    Route::post('/requests/{financialRequest}/approve', [FinancialRequestController::class, 'budgetApprove'])->name('approve');
-    Route::post('/requests/{financialRequest}/reject', [FinancialRequestController::class, 'reject'])->name('reject');
+    // Action Routes
+    Route::post('/approve/{request}', [FinancialRequestController::class, 'accountingApprove'])
+         ->name('approve');
+         
+    Route::post('/reject/{request}', [FinancialRequestController::class, 'reject'])
+         ->name('reject'); // Points to the same 'reject' method
+         
+    // Report & Export Routes
+    Route::get('/export/excel', [FinancialRequestController::class, 'accountingExcelExport'])
+         ->name('reports.excel');
+    Route::get('/export/pdf', [FinancialRequestController::class, 'accountingPdfExport'])
+         ->name('reports.pdf');
+});
+Route::middleware(['auth', 'role:Budget'])->prefix('budget')->name('budget.')->group(function () {
+    Route::get('/dashboard', [FinancialRequestController::class, 'budgetDashboard'])
+        ->name('dashboard');
+
+    // ✨ NEW: Make '/queue' just a redirect to 'all-requests' with a filter
+    Route::get('/queue', function () {
+        return redirect()->route('budget.all-requests', ['status' => 'pending_budget']);
+    })->name('queue');
+
+    // ✨ This is now our MAIN page for the list
+    Route::get('/all-requests', [FinancialRequestController::class, 'budgetAllRequests'])
+        ->name('all-requests');
+
+    // ✨ This is now our MAIN route for the modal
+    Route::get('/all-requests/{financialRequest}', [FinancialRequestController::class, 'budgetAllRequests'])
+        ->name('all-requests.show');
+        Route::post('/approve/{request}', [FinancialRequestController::class, 'budgetApprove'])
+         ->name('approve'); // New name: budget.approve
+         
+    Route::post('/reject/{request}', [FinancialRequestController::class, 'reject'])
+         ->name('reject'); // New name: budget.reject
+
+Route::get('/reports', [FinancialRequestController::class, 'budgetReportPage'])
+         ->name('reports');
+    Route::get('/reports/excel', [FinancialRequestController::class, 'budgetExcelExport'])
+         ->name('reports.excel');
+    Route::get('/reports/pdf', [FinancialRequestController::class, 'budgetPdfExport'])
+         ->name('reports.pdf');
 });
 
 Route::middleware(['auth', 'verified'])->prefix('scholar')->name('scholar.')->group(function () {
