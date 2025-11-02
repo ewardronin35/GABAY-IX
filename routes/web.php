@@ -273,7 +273,8 @@ Route::middleware(['auth', 'role:Budget'])->prefix('budget')->name('budget.')->g
     // ✨ This is now our MAIN page for the list
     Route::get('/all-requests', [FinancialRequestController::class, 'budgetAllRequests'])
         ->name('all-requests');
-
+Route::post('/skip-to-cashier/{request}', [FinancialRequestController::class, 'budgetSkipToCashier'])
+         ->name('skip-to-cashier');
     // ✨ This is now our MAIN route for the modal
     Route::get('/all-requests/{financialRequest}', [FinancialRequestController::class, 'budgetAllRequests'])
         ->name('all-requests.show');

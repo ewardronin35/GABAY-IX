@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
-
+use App\Models\User; // ✨ Import User
 /*
 |--------------------------------------------------------------------------
 | Broadcast Channels
@@ -23,4 +23,14 @@ Broadcast::channel('stufaps-database', function ($user) {
     // Only allow users with these roles to listen to the channel.
     // Adjust the roles as needed.
     return $user->hasRole(['Super Admin', 'Records Officer', 'Encoder']);
+});
+
+Broadcast::channel('User.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
+});
+
+// ✨ ADD THIS CHANNEL for notifying roles
+Broadcast::channel('Role.{roleName}', function (User $user, $roleName) {
+    // This checks if the authenticated user has the specified role
+    return $user->hasRole($roleName);
 });

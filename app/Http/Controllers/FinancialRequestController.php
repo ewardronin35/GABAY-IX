@@ -13,7 +13,11 @@ use Illuminate\Support\Facades\DB; // ✨ 1. Import DB facade
 use Maatwebsite\Excel\Facades\Excel; // ✨ 1. Import Excel
 use App\Exports\BudgetRequestsExport; // ✨ 2. Import your new Export class
 use Barryvdh\DomPDF\Facade\Pdf; // ✨ 1. Import the PDF facade
-
+use Illuminate\Support\Facades\Notification; // ✨ 2. Import Notification
+use App\Notifications\FinancialRequestStatusUpdated; // ✨ 3. Import our "Status" email
+use App\Notifications\NewRequestInQueue; // ✨ 4. Import our "Queue" email
+use App\Models\User; // ✨ 1. Import User
+use App\Events\FinancialRequestUpdated; // ✨ 1. Import our new event
 class FinancialRequestController extends Controller
 {
     // --- USER ACTIONS ---
@@ -162,6 +166,26 @@ public function index(Request $request) // ✨ 1. Add Request
             'filters' => $filters,      // All active filters
             'request' => $financialRequest, // Data for the modal (or null)
         ]);
+    }
+    public function budgetSkipToCashier(FinancialRequest $request)
+    {
+        $request->update([
+            'status' => 'pending_cashier', // Skip accounting
+            'budget_approver_id' => Auth::id(),
+            'budget_approved_at' => now(),
+            // Add a remark so there is a record of this
+            'remarks' => $request->remarks . " [Skipped Accounting by " . Auth::user()->name . "]",
+        ]);
+
+        // --- Notify ---
+        // 1. Notify the submitter their status changed
+        $request->user->notify(new FinancialRequestStatusUpdated($request));
+        // 2. Notify all users in the 'Cashier' role
+        $cashierUsers = User::role('Cashier')->get();
+        Notification::send($cashierUsers, new NewRequestInQueue($request, 'cashier'));
+broadcast(new FinancialRequestUpdated($request, 'Cashier'))->toOthers();
+        return redirect()->route('budget.all-requests', ['status' => 'pending_budget'])
+                         ->with('success', 'Request approved and skipped straight to Cashier.');
     }
     // ✨ 2. ADD THE 'show' METHOD FOR THE "VIEW" BUTTON
 public function show(FinancialRequest $financialRequest)
@@ -338,7 +362,7 @@ public function show(FinancialRequest $financialRequest)
                 ]);
             }
         }
-
+broadcast(new FinancialRequestUpdated($financialRequest, 'Budget'))->toOthers();
         return redirect()->route('financial.index')->with('success', 'Request submitted successfully.');
     }
 
@@ -351,22 +375,33 @@ public function budgetApprove(FinancialRequest $request)
             'budget_approver_id' => Auth::id(),
             'budget_approved_at' => now(),
         ]);
-
-        // FIX: Redirect to the main queue route, not 'back()'.
-        // This closes the modal and refreshes the list.
+        
+        // --- Notify ---
+        // 1. Notify the submitter their status changed
+        $request->user->notify(new FinancialRequestStatusUpdated($request));
+        // 2. Notify all users in the 'Accounting' role
+        $accountingUsers = User::role('Accounting')->get();
+        Notification::send($accountingUsers, new NewRequestInQueue($request, 'accounting'));
+broadcast(new FinancialRequestUpdated($request, 'Accounting'))->toOthers();
         return redirect()->route('budget.all-requests', ['status' => 'pending_budget'])
                          ->with('success', 'Request approved and sent to Accounting.');
     }
 
-   public function accountingApprove(FinancialRequest $request)
+public function accountingApprove(FinancialRequest $request)
     {
         $request->update([
-            'status' => 'pending_cashier', // <-- 1. FIX: Set next status
+            'status' => 'pending_cashier',
             'accounting_approver_id' => Auth::id(),
             'accounting_approved_at' => now(),
         ]);
         
-        // <-- 2. FIX: Redirect to the new "all-requests" page, filtered to the queue
+        // --- Notify ---
+        // 1. Notify the submitter
+        $request->user->notify(new FinancialRequestStatusUpdated($request));
+        // 2. Notify all users in the 'Cashier' role
+        $cashierUsers = User::role('Cashier')->get();
+        Notification::send($cashierUsers, new NewRequestInQueue($request, 'cashier'));
+broadcast(new FinancialRequestUpdated($request, 'Cashier'))->toOthers();
         return redirect()->route('accounting.all-requests', ['status' => 'pending_accounting'])
                          ->with('success', 'Request approved and sent to Cashier.');
     }
@@ -616,7 +651,7 @@ public function accountingAllRequests(Request $request, ?FinancialRequest $finan
             'cashier_processor_id' => Auth::id(),
             'cashier_paid_at' => now(),
         ]);
-        
+        broadcast(new FinancialRequestUpdated($request, null))->toOthers();
         // <-- 2. FIX: Redirect to the new "all-requests" page, filtered to the queue
         return redirect()->route('cashier.all-requests', ['status' => 'pending_cashier'])
                          ->with('success', 'Request marked as paid and completed.');
@@ -641,7 +676,7 @@ public function accountingAllRequests(Request $request, ?FinancialRequest $finan
             return redirect()->route('accounting.all-requests', ['status' => 'pending_accounting'])
                              ->with('error', 'Request has been rejected.');
         }
-        
+        broadcast(new FinancialRequestUpdated($request, null))->toOthers();
         // Default to budget
         return redirect()->route('budget.all-requests', ['status' => 'pending_budget'])
                          ->with('error', 'Request has been rejected.');

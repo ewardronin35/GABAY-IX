@@ -148,7 +148,13 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
             onFinish: () => setIsSubmitting(false),
         });
     };
-
+const handleSkipToCashier = () => {
+        setIsSubmitting(true);
+        router.post(route('budget.skip-to-cashier', request.id), {}, {
+            preserveScroll: true,
+            onFinish: () => setIsSubmitting(false),
+        });
+    };
     const handleConfirmReject = () => {
         if (!remarks) return;
         setIsSubmitting(true);
@@ -185,23 +191,35 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
                             <AlertTriangle className="mr-2 h-4 w-4" />Action Required
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="flex items-center gap-4">
-                        <Button 
-                            className="flex-1"
-                            size="lg"
-                            onClick={handleApprove}
+                  <CardContent className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                            <Button 
+                                className="flex-1"
+                                size="lg"
+                                onClick={handleApprove}
+                                disabled={isSubmitting}
+                            >
+                                <Check className="mr-2 h-4 w-4" /> Approve
+                            </Button>
+                            <Button 
+                                className="flex-1"
+                                size="lg"
+                                variant="destructive"
+                                onClick={() => setIsRejectModalOpen(true)}
+                                disabled={isSubmitting}
+                            >
+                                <X className="mr-2 h-4 w-4" /> Reject
+                            </Button>
+                        </div>
+                        {/* ✨ 3. ADD THE NEW SKIP BUTTON */}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={handleSkipToCashier}
                             disabled={isSubmitting}
                         >
-                            <Check className="mr-2 h-4 w-4" /> Approve
-                        </Button>
-                        <Button 
-                            className="flex-1"
-                            size="lg"
-                            variant="destructive"
-                            onClick={() => setIsRejectModalOpen(true)}
-                            disabled={isSubmitting}
-                        >
-                            <X className="mr-2 h-4 w-4" /> Reject
+                            Approve & Skip to Cashier
                         </Button>
                     </CardContent>
                 </Card>

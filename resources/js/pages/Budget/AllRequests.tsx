@@ -1,6 +1,6 @@
 import AppLayout from "@/layouts/app-layout";
 import { PageProps, FullFinancialRequest, Paginator } from "@/types";
-import { Head, router, Link } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,17 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { formatDistanceToNow, differenceInCalendarDays, format } from 'date-fns';
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Eye, ArrowUp, ArrowDown, Download, } from "lucide-react";
-// ✨ 1. Import your new BudgetApprovalSheet
+import { Eye, ArrowUp, ArrowDown, Download } from "lucide-react";
 import { BudgetApprovalSheet } from "./BudgetApprovalSheet"; 
 import { PaginationLinks } from "@/components/ui/PaginationLinks";
 import { pickBy } from 'lodash';
 import { type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils"; // ✨ ADD THIS LINE
-import { buttonVariants } from "@/components/ui/button"; // ✨ 2. Import buttonVariants
-import { DatePicker } from "@/components/ui/date-picker"; // ✨ Import DatePicker
-import Reports from "./Reports"; // ✨ Import the new Reports component
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // ✨ ADD THIS
+import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Reports from "./Reports"; // Import the Reports component
+
 // --- TYPES & HELPERS ---
 type PageRequest = Omit<FullFinancialRequest, 'user'> & {
     user: { id: number; name: string; };
@@ -39,17 +38,17 @@ interface ChartData {
     amountByTypeChart: { request_type: string, total: number }[];
 }
 
-// ✨ REGENERATED PROPS (Your Request)
 interface AllRequestsPageProps extends PageProps {
     requests: Paginator<PageRequest>;
-    charts: ChartData; // ✨ ADDED charts
-    filters: ReportFilters & { // ✨ UPDATED filters
+    charts: ChartData;
+    filters: ReportFilters & {
         sort?: string;
         direction?: string;
     };
     request?: FullFinancialRequest;
-}// (Your helper functions: getStatusBadge, getRowClass, formatCurrency, formatDateTime)
-// ...
+}
+
+// Helper Functions
 export const getStatusBadge = (status: string): VariantProps<typeof badgeVariants>["variant"] => { 
     switch (status) {
         case 'pending_budget': return 'warning';
@@ -81,7 +80,7 @@ const formatDateTime = (dateString: string) => {
     return format(date, "MMM d, yyyy");
 };
 
-// --- ✨ REGENERATED MAIN COMPONENT ---
+// --- MAIN COMPONENT ---
 export default function AllRequests({ auth, requests, charts, filters, request }: AllRequestsPageProps) {
     
     // --- Modal State ---
@@ -90,7 +89,6 @@ export default function AllRequests({ auth, requests, charts, filters, request }
 
     const handleSheetOpenChange = (open: boolean) => {
         if (!open) {
-            // Use activeFilters to preserve state when closing modal
             router.get(route('budget.all-requests'), activeFilters, { 
                 preserveState: true, 
                 preserveScroll: true 
@@ -118,11 +116,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
     };
 
     // --- Data Fetching Handlers ---
-
-    // Apply all filters (except sorting) and fetch new data
     const handleApplyFilters = () => {
-        // We remove 'sort' and 'direction' when applying filters,
-        // as the user is starting a new search.
         const { sort, direction, ...filterValues } = activeFilters;
         const cleanFilters = pickBy(filterValues);
         
@@ -132,14 +126,11 @@ export default function AllRequests({ auth, requests, charts, filters, request }
         });
     };
     
-    // Handle table sorting
     const handleSort = (newSort: string) => {
         let newDirection = 'asc';
         if (activeFilters.sort === newSort && activeFilters.direction === 'asc') {
             newDirection = 'desc';
         }
-        
-        // When sorting, we must include all other active filters
         const newFilters = pickBy({ ...activeFilters, sort: newSort, direction: newDirection });
         
         router.get(route('budget.all-requests'), newFilters, { 
@@ -148,9 +139,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
         });
     }
 
-    // Modal view handler
     const handleViewRequest = (id: number) => {
-        // Pass active filters so they are preserved when opening/closing the modal
         router.get(route('budget.all-requests.show', id), activeFilters, { preserveState: true });
     };
 
@@ -165,7 +154,7 @@ export default function AllRequests({ auth, requests, charts, filters, request }
     };
 
     return (
-        <AppLayout user={auth.user} header="All Financial Requests">
+        <AppLayout user={auth.user!} header="All Financial Requests" page_title="All Financial Requests">
             <Head title="All Financial Requests" />
 
             <div className="py-12">
@@ -217,17 +206,17 @@ export default function AllRequests({ auth, requests, charts, filters, request }
                                 </div>
                                 <div>
                                     <Label>Start Date</Label>
-                                   <DatePicker 
-    date={activeFilters.start_date ? new Date(activeFilters.start_date) : undefined} 
-    onSelect={(d: Date | undefined) => setFilter('start_date', d)} 
-/>
+                                    <DatePicker 
+                                        date={activeFilters.start_date ? new Date(activeFilters.start_date) : undefined} 
+                                        onSelect={(d: Date | undefined) => setFilter('start_date', d)} 
+                                    />
                                 </div>
                                 <div>
                                     <Label>End Date</Label>
                                     <DatePicker 
-    date={activeFilters.end_date ? new Date(activeFilters.end_date) : undefined} 
-    onSelect={(d: Date | undefined) => setFilter('end_date', d)} 
-/>
+                                        date={activeFilters.end_date ? new Date(activeFilters.end_date) : undefined} 
+                                        onSelect={(d: Date | undefined) => setFilter('end_date', d)} 
+                                    />
                                 </div>
                                 <div className="flex items-end">
                                     <Button onClick={handleApplyFilters} className="w-full">
@@ -314,7 +303,6 @@ export default function AllRequests({ auth, requests, charts, filters, request }
 
                         {/* --- TAB 2: REPORTS & CHARTS --- */}
                         <TabsContent value="reports">
-                            {/* ✨ Pass the charts and filters to the Reports component */}
                             <Reports charts={charts} filters={getReportFilters()} />
                         </TabsContent>
                     </Tabs>

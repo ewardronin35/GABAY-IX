@@ -295,7 +295,16 @@ html {
     @apply bg-background text-foreground;
     }
 }
-/* In src/index.css */
+
+body {
+  overflow-y: scroll;
+}
+.layout {
+  overflow-y: scroll;
+}
 html {
+
+  overflow-y: scroll;
   scroll-behavior: smooth;
 }
+
