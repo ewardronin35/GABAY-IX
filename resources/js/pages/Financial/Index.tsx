@@ -30,6 +30,12 @@ import { PaginationLinks } from "@/components/ui/PaginationLinks";
 // import { useDebounce } from "@uidotdev/use-debounce";
 
 // --- LIST/INDEX TYPES ---
+interface IndexPageProps extends PageProps {
+    requests: Paginator<FullFinancialRequest>;
+    filters: { [key: string]: string };
+    request?: FullFinancialRequest; // This is for the modal
+    tab?: string; // --- ADD THIS ---
+}
 interface FinancialRequest {
     id: number;
     title: string;
