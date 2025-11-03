@@ -100,6 +100,7 @@ export interface FullFinancialRequest {
     attachments: Attachment[]; // An array of attachment objects
     logs?: FinancialRequestLog[]; // The audit logs
     time_in_current_status: string;
+    days_in_current_status: number | null;
 }
 export interface SharedData {
     name: string;

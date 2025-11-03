@@ -12,7 +12,7 @@ use Carbon\Carbon; // ✨ 1. Make sure Carbon is imported
 class FinancialRequest extends Model
 {
     use HasFactory;
-    protected $appends = ['time_in_current_status'];
+   protected $appends = ['time_in_current_status', 'days_in_current_status'];
     protected $fillable = [
         'user_id',
         'title',
@@ -69,7 +69,29 @@ class FinancialRequest extends Model
         return $date->diffForHumans(null, true); // e.g., "2 days", "5 hours"
     }
     // ⬆️ **END OF CORRECTED METHOD** ⬆️
+public function getDaysInCurrentStatusAttribute(): ?int
+    {
+        // If it's not pending, we don't need to color-code it.
+        if (in_array($this->status, ['completed', 'rejected'])) {
+            return null;
+        }
 
+        // Find the date this *current* stage started
+        $relevantDate = match ($this->status) {
+            'pending_accounting' => $this->budget_approved_at,
+            'pending_cashier' => $this->accounting_approved_at,
+            default => $this->created_at, // 'pending_budget'
+        };
+
+        $dateToParse = $relevantDate ?? $this->created_at;
+
+        if (!$dateToParse) {
+            return 0;
+        }
+
+        // Calculate the difference in whole days from that date until now
+        return Carbon::parse($dateToParse)->diffInDays(now());
+    }
 
     // The 'USER' who submitted
     public function user(): BelongsTo
