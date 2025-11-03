@@ -16,7 +16,13 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     ziggy: Config & { location: string; query: { tab?: string } };
     [key: string]: unknown;
 };
-
+export interface FinancialRequestLog {
+    id: number;
+    action: string;
+    remarks: string | null;
+    user: User; // The user who performed the action
+    created_at: string;
+}
 // ✨ ADD: Tell TypeScript about the global window.Echo object
 declare global {
     interface Window {
@@ -92,6 +98,8 @@ export interface FullFinancialRequest {
     cashier_paid_at: string | null;
     user: User; // The full user object
     attachments: Attachment[]; // An array of attachment objects
+    logs?: FinancialRequestLog[]; // The audit logs
+    time_in_current_status: string;
 }
 export interface SharedData {
     name: string;

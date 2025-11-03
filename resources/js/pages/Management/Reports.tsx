@@ -40,7 +40,7 @@ const getExportUrl = (filters: ReportFilters, format: 'pdf' | 'excel') => {
     const cleanFilters = pickBy(filters);
     const params = new URLSearchParams(cleanFilters as Record<string, string>);
     // Use the new routes we created
-    const routeName = format === 'pdf' ? 'budget.reports.pdf' : 'budget.reports.excel';
+const routeName = format === 'pdf' ? 'management.financial.reports.pdf' : 'management.financial.reports.excel';
     return route(routeName) + '?' + params.toString();
 };
 

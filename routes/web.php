@@ -291,7 +291,20 @@ Route::get('/reports', [FinancialRequestController::class, 'budgetReportPage'])
     Route::get('/reports/pdf', [FinancialRequestController::class, 'budgetPdfExport'])
          ->name('reports.pdf');
 });
-
+Route::middleware(['auth', 'role:Chief|RD'])->prefix('management')->name('management.')->group(function () {
+    
+    // Page & Modal Routes
+    Route::get('/financial-tracker', [FinancialRequestController::class, 'managementViewAll'])
+        ->name('financial.all-requests');
+    Route::get('/financial-tracker/{financialRequest}', [FinancialRequestController::class, 'managementViewAll'])
+        ->name('financial.all-requests.show');
+         
+    // Report & Export Routes
+    Route::get('/financial-tracker/export/excel', [FinancialRequestController::class, 'budgetExcelExport'])
+         ->name('financial.reports.excel');
+    Route::get('/financial-tracker/export/pdf', [FinancialRequestController::class, 'budgetPdfExport'])
+         ->name('financial.reports.pdf');
+});
 Route::middleware(['auth', 'verified'])->prefix('scholar')->name('scholar.')->group(function () {
     Route::middleware('permission:view applications')->group(function () {
 

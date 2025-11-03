@@ -1,4 +1,4 @@
-import { FullFinancialRequest, Attachment } from "@/types";
+import { FullFinancialRequest, Attachment, FinancialRequestLog } from "@/types"; // ✨ Now this works!
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,24 +19,10 @@ import {
     Check,
     X,
     FileText,
-    AlertTriangle,
+    History, // ✨ Add History icon
 } from "lucide-react";
 import { OfficialHeader } from "@/components/ui/OfficialHeader";
 import { cn } from "@/lib/utils";
-import { router } from "@inertiajs/react";
-import { useState } from "react";
-import { 
-    AlertDialog, 
-    AlertDialogAction, 
-    AlertDialogCancel, 
-    AlertDialogContent, 
-    AlertDialogDescription, 
-    AlertDialogFooter, 
-    AlertDialogHeader, 
-    AlertDialogTitle 
-} from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { route } from "ziggy-js";
 
 // --- Helper functions ---
 const formatCurrency = (amount: number) => {
@@ -52,11 +38,12 @@ const formatDateTime = (dateString: string | null) => {
     });
 };
 const getAttachmentUrl = (path: string) => {
-    return `/storage/${path.replace('private/', 'public/')}`; // Adjust as needed
+    return `/storage/${path.replace('private/', 'public/')}`;
 }
 
 // --- Stepper Helper Components ---
 type StepStatus = "complete" | "active" | "pending";
+
 function StepperStep({ 
     icon, 
     title, 
@@ -130,102 +117,24 @@ function RequestStepper({ request }: { request: FullFinancialRequest }) {
     );
 }
 
-// --- MAIN COMPONENT ---
-export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest }) {
+// --- MAIN VIEW ONLY COMPONENT ---
+export function ViewOnlySheet({ request }: { request: FullFinancialRequest }) {
     
-    // --- State for actions ---
-    const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-    const [remarks, setRemarks] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    // --- Action Handlers ---
-    const handleApprove = () => {
-        setIsSubmitting(true);
-        router.post(route('budget.approve', request.id), {}, {
-            preserveScroll: true,
-            onFinish: () => setIsSubmitting(false),
-        });
-    };
-    
-    // ✨ ADDED SKIP HANDLER
-    const handleSkipToCashier = () => {
-        setIsSubmitting(true);
-        router.post(route('budget.skip-to-cashier', request.id), {}, {
-            preserveScroll: true,
-            onFinish: () => setIsSubmitting(false),
-        });
-    };
-
-    const handleConfirmReject = () => {
-        if (!remarks) return;
-        setIsSubmitting(true);
-        router.post(route('budget.reject', request.id), { remarks }, {
-            preserveScroll: true,
-            onFinish: () => {
-                setIsSubmitting(false);
-                setIsRejectModalOpen(false);
-                setRemarks("");
-            },
-        });
-    };
-
-    const isActionable = request.status === 'pending_budget';
+    // Make sure your controller is sending `logs.user`
+    // In FinancialRequestController.php -> managementViewAll, make sure you have:
+    // $financialRequest->load('user', 'attachments', 'logs.user');
 
     return (
         <>
             <OfficialHeader title="Financial Request Details" />
-
             <RequestStepper request={request} />
-
+            
             <SheetHeader className="mt-4 text-left">
                 <SheetTitle>{request.title}</SheetTitle>
                 <SheetDescription>
                     {request.request_type} &bull; {formatCurrency(request.amount)}
                 </SheetDescription>
             </SheetHeader>
-
-            {/* --- ACTIONS CARD --- */}
-            {isActionable && (
-                <Card className="my-4 bg-blue-50 border-blue-200">
-                    <CardHeader>
-                        <CardTitle className="flex items-center text-blue-800">
-                            <AlertTriangle className="mr-2 h-4 w-4" />Action Required
-                        </CardTitle>
-                    </CardHeader>
-                    {/* ✨ UPDATED CARD CONTENT with Skip Button */}
-                    <CardContent className="flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
-                            <Button 
-                                className="flex-1"
-                                size="lg"
-                                onClick={handleApprove}
-                                disabled={isSubmitting}
-                            >
-                                <Check className="mr-2 h-4 w-4" /> Approve
-                            </Button>
-                            <Button 
-                                className="flex-1"
-                                size="lg"
-                                variant="destructive"
-                                onClick={() => setIsRejectModalOpen(true)}
-                                disabled={isSubmitting}
-                            >
-                                <X className="mr-2 h-4 w-4" /> Reject
-                            </Button>
-                        </div>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                            onClick={handleSkipToCashier}
-                            disabled={isSubmitting}
-                        >
-                            Approve & Skip to Cashier
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
-
             <div className="space-y-4 py-4">
                 {/* Status Card */}
                 <Card>
@@ -236,7 +145,7 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
                         <div className="flex items-center space-x-2">
                             <Label>Current Status:</Label>
                             <Badge variant={request.status === 'rejected' ? 'destructive' : 'default'} className="text-base capitalize">
-                                {request.status.replace('_', ' ')}
+                                {request.status.replace(/_/g, ' ')}
                             </Badge>
                         </div>
                         {request.status === 'rejected' && request.remarks && (
@@ -256,6 +165,39 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
                     </CardContent>
                 </Card>
 
+                {/* ✨ --- NEW AUDIT LOG CARD --- ✨ */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><History className="mr-2 h-4 w-4" />Audit Log</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-3">
+                            {request.logs && request.logs.length > 0 ? request.logs.map((log: FinancialRequestLog) => (
+                                <li key={log.id} className="text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="font-semibold capitalize">
+                                            {log.action.replace(/_/g, ' ')}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {formatDateTime(log.created_at)}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        by {log.user ? log.user.name : 'System'}
+                                    </div>
+                                    {log.remarks && (
+                                        <p className="mt-1 p-2 text-xs bg-muted rounded italic">
+                                            "{log.remarks}"
+                                        </p>
+                                    )}
+                                </li>
+                            )) : (
+                                <li className="text-sm text-muted-foreground">No log history available.</li>
+                            )}
+                        </ul>
+                    </CardContent>
+                </Card>
+
                 {/* History Card */}
                 <Card>
                     <CardHeader><CardTitle className="flex items-center"><CalendarDays className="mr-2 h-4 w-4" />Status History</CardTitle></CardHeader>
@@ -272,7 +214,7 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
                     <CardHeader><CardTitle className="flex items-center"><Paperclip className="mr-2 h-4 w-4" />Attachments</CardTitle></CardHeader>
                     <CardContent>
                         <ul className="space-y-2">
-                            {request.attachments.length > 0 ? request.attachments.map(att => (
+                            {request.attachments.length > 0 ? request.attachments.map((att: Attachment) => (
                                 <li key={att.id}>
                                     <Button variant="outline" asChild>
                                         <a href={getAttachmentUrl(att.filepath)} target="_blank" rel="noopener noreferrer">
@@ -290,34 +232,6 @@ export function BudgetApprovalSheet({ request }: { request: FullFinancialRequest
                     </CardContent>
                 </Card>
             </div>
-
-            {/* --- REJECT MODAL --- */}
-            <AlertDialog open={isRejectModalOpen} onOpenChange={setIsRejectModalOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Reject Request?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Please provide a reason for rejecting this request. This remark
-                            will be visible to the user.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <div className="space-y-2">
-                        <Label htmlFor="remarks">Rejection Remarks (Required)</Label>
-                        <Textarea 
-                            id="remarks"
-                            value={remarks}
-                            onChange={(e) => setRemarks(e.target.value)}
-                            placeholder="e.g., Exceeds department budget..."
-                        />
-                    </div>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmReject} disabled={!remarks || isSubmitting}>
-                            {isSubmitting ? "Submitting..." : "Confirm Rejection"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </>
     );
 }

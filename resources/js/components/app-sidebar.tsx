@@ -36,6 +36,7 @@ import {
     HandCoins,
     ClipboardList,
     ListChecks, 
+    Eye,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -70,7 +71,20 @@ const superAdminNavItems: NavItem[] = [
                 href: route('superadmin.stufaps.index'),
                 isActive: route().current('superadmin.stufaps.index'),
             },
+           
             {
+                title: 'Estatskolar',
+                href: route('superadmin.estatskolar.index'),
+                isActive: route().current('superadmin.estatskolar.index'),
+            },
+        ],
+    },
+    {
+        title: 'UniFast Database',
+        icon: Database,
+        href: '#',
+        children: [
+           {
                 title: 'TES',
                 href: route('superadmin.tes.index'),
                 isActive: route().current('superadmin.tes.index'),
@@ -80,13 +94,10 @@ const superAdminNavItems: NavItem[] = [
                 href: route('superadmin.tdp.index'),
                 isActive: route().current('superadmin.tdp.index'),
             },
-            {
-                title: 'Estatskolar',
-                href: route('superadmin.estatskolar.index'),
-                isActive: route().current('superadmin.estatskolar.index'),
-            },
         ],
+
     },
+    
     {
         title: 'Scholarship',
         icon: GraduationCap,
@@ -185,7 +196,23 @@ const accountantNavItems: NavItem[] = [
     // The "Reports" link is removed because it is now a tab
     // inside the "Requests & Reports" page.
 ];
+const chiefNavItems: NavItem[] = [
+    {
+        title: 'Financial Tracker',
+        href: route('management.financial.all-requests'),
+        icon: Eye,
+        isActive: route().current('management.financial.*'),
+    },
+];
 
+const rdNavItems: NavItem[] = [
+    {
+        title: 'Financial Tracker',
+        href: route('management.financial.all-requests'),
+        icon: Eye,
+        isActive: route().current('management.financial.*'),
+    },
+];
 const budgetNavItems: NavItem[] = [
     {
         title: 'Budget Dashboard',
@@ -274,6 +301,14 @@ const { auth, ziggy } = usePage<PageProps>().props;
                 // ... potentially add others like accountantNavItems if needed
             ];
             break;
+        case 'Chief':
+            // Chief sees common items + their own
+            finalNavItems = [...finalNavItems, ...chiefNavItems];
+            break;
+        case 'RD':
+            // RD sees common items + their own
+            finalNavItems = [...finalNavItems, ...rdNavItems];
+            break;
 
         case 'UniFast RC':
             console.log("Matched Role: UniFast RC"); // Debug
@@ -296,7 +331,7 @@ const { auth, ziggy } = usePage<PageProps>().props;
         case 'Cashier': 
             finalNavItems = [...finalNavItems, ...cashierNavItems];
             break;
-    
+            
         
         
         // Add more roles as needed

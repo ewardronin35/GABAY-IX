@@ -1,7 +1,7 @@
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
 import { type BreadcrumbItem, type User, PageProps } from '@/types'; 
 import { type ReactNode, useEffect } from 'react'; 
-import { usePage, router } from '@inertiajs/react'; // router is imported
+import { usePage, router } from '@inertiajs/react'; // Import router
 import { toast, Toaster } from 'sonner'; 
 
 // Import Echo and Pusher
@@ -47,7 +47,7 @@ export default ({ children, breadcrumbs, ...props }: AppLayoutProps) => {
         }
     }, [flash]); 
 
-    // --- Real-time Event Listener Hook ---
+    // --- NEW Real-time Event Listener Hook ---
     useEffect(() => {
         // Check if user and user.roles exist
         if (user && window.Echo && user.roles) {
@@ -61,7 +61,7 @@ export default ({ children, breadcrumbs, ...props }: AppLayoutProps) => {
                         description: 'One of your financial requests was updated.' 
                     });
                     
-                    // Use router.get() to refresh data
+                    // Use router.get() to refresh data (fixes TypeScript error)
                     router.get(window.location.href, {}, {
                         preserveScroll: true, 
                         preserveState: true 
