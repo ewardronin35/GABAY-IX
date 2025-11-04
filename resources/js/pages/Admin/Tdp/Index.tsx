@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react'; // ✅ Import router and usePage
 import { type PageProps, type User } from '@/types';
 import { useState, useEffect } from 'react';
-
+import { route } from 'ziggy-js';
 // UI Components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Database, FileText, List, Upload, Building } from 'lucide-react';
@@ -36,19 +36,54 @@ interface Paginator<T> {
 }
 
 // Define the props for this page
-// Define the props for this page
 interface TdpIndexProps extends PageProps {
     tdpRecords?: Paginator<any>;
-    tdpMasterlist?: Paginator<any>; // ✅ ADD THIS LINE
-    heis?: Paginator<any>; // ✅ ADD THIS
+    tdpMasterlist?: Paginator<any>;
+    heis?: Paginator<any>;
     filters?: { 
-        search_db?: string;   // ✅ Make these more specific
-        search_ml?: string;   // ✅ Make these more specific
-        search_hei?: string; // ✅ ADD THIS
+        search_db?: string;
+        search_ml?: string;
+        search_hei?: string;
     };
+    // ✅ ADD THIS
+    tab?: string;
 }
 export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filters }: TdpIndexProps) {
-            const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
+    const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
+
+    // ✅ START: Tab Management
+    // Get the current URL from Inertia
+    const { url } = usePage();
+    // Helper function to get query params
+    const getQueryParam = (param: string, defaultValue: string) => {
+        const queryParams = new URLSearchParams(url.split('?')[1]);
+        return queryParams.get(param) || defaultValue;
+    };
+
+    // Set active tab from URL 'tab' param, or default to 'hei'
+    const [activeTab, setActiveTab] = useState(getQueryParam('tab', 'hei'));
+
+    // This function runs when a new tab is clicked
+    const handleTabChange = (tabValue: string) => {
+        setActiveTab(tabValue);
+        
+        // Update the URL with the new tab parameter
+        // We use router.get to visit the same page, but only change the URL
+        router.get(route('superadmin.tdp.index'), {
+            // Preserve all current filters
+            ...filters,
+            // Add/update the 'tab' parameter
+            tab: tabValue,
+            // Preserve pagination for other tabs (if they exist in filters)
+            db_page: getQueryParam('db_page', '1'),
+            ml_page: getQueryParam('ml_page', '1'),
+            hei_page: getQueryParam('hei_page', '1'),
+        }, { 
+            preserveState: true, 
+            replace: true 
+        });
+    };
+    // ✅ END: Tab Management
 
     useEffect(() => {
         const observer = new MutationObserver(() => setTableClassName(getInitialThemeClass()));
@@ -70,16 +105,19 @@ export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filter
                 <div className="flex items-center justify-between space-y-2">
                     <h2 className="text-3xl font-bold tracking-tight">Tulong Dunong Program (TDP)</h2>
                 </div>
-<Tabs defaultValue="hei" className="space-y-4">
+                
+                {/* ✅ MODIFIED: Set 'value' and 'onValueChange' to manage tab state */}
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
                     <TabsList>
-                        {/* ▼▼▼ ADD NEW 'HEI' TAB TRIGGER ▼▼▼ */}
                         <TabsTrigger value="hei"><Building className="w-4 h-4 mr-2" /> HEIs</TabsTrigger>
                         <TabsTrigger value="database"><Database className="w-4 h-4 mr-2" /> Database</TabsTrigger>
                         <TabsTrigger value="masterlist"><List className="w-4 h-4 mr-2" /> Masterlist</TabsTrigger>
                         <TabsTrigger value="report"><FileText className="w-4 h-4 mr-2" /> Reports</TabsTrigger>
                         <TabsTrigger value="import"><Upload className="w-4 h-4 mr-2" /> Import</TabsTrigger>
                     </TabsList>
-<TabsContent value="hei" className="space-y-4">
+
+                    {/* All TabsContent remains the same */}
+                    <TabsContent value="hei" className="space-y-4">
                         {heis ? (
                             <TdpHeiGrid
                                 heis={heis}
@@ -98,10 +136,9 @@ export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filter
                     </TabsContent>
                         
                    <TabsContent value="masterlist" className="space-y-4">
-                    {/* ▼▼▼ CHANGE tdpRecords TO tdpMasterlist HERE ▼▼▼ */}
                     {tdpMasterlist ? (
                          <TdpMasterlistGrid
-                            records={tdpMasterlist} // ✅ CHANGED
+                            records={tdpMasterlist}
                             filters={filters}
                         />
                     ) : <p className="p-8 text-center text-muted-foreground">Data not available.</p>}

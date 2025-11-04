@@ -3,7 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Course;
-use App\Models\Hei;
+use App\Models\HEI;
 use App\Models\TesAcademicRecord;
 use App\Models\TesScholar;
 use Carbon\Carbon;
@@ -30,7 +30,7 @@ class TesImport implements ToModel, WithHeadingRow, WithBatchInserts, WithChunkR
          * This creates an efficient 'Name' => 'ID' map in memory.
          * This is the core of the pre-caching optimization.
          */
-        $this->heis = Hei::pluck('id', 'hei_name');
+        $this->heis = HEI::pluck('id', 'hei_name');
         $this->courses = Course::pluck('id', 'course_name');
     }
 

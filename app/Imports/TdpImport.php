@@ -3,7 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Course;
-use App\Models\Hei; // Make sure your model is Hei, not Hei
+use App\Models\HEI; // Make sure your model is Hei, not Hei
 use App\Models\TdpAcademicRecord;
 use App\Models\TdpScholar;
 use Maatwebsite\Excel\Concerns\ToModel;
@@ -20,7 +20,7 @@ class TdpImport implements ToModel, WithHeadingRow, WithBatchInserts, WithChunkR
     public function __construct()
     {
         // Pre-load existing HEIs and Courses to avoid duplicate queries in the loop
-        $this->heis = Hei::pluck('id', 'hei_name');
+        $this->heis = HEI::pluck('id', 'hei_name');
         $this->courses = Course::pluck('id', 'course_name');
     }
 
@@ -43,7 +43,7 @@ class TdpImport implements ToModel, WithHeadingRow, WithBatchInserts, WithChunkR
         $heiName = $row['hei_name'] ?? 'N/A';
         $heiId = $this->heis->get($heiName);
         if (!$heiId) {
-            $hei = Hei::create([
+            $hei = HEI::create([
                 'hei_name' => $heiName, 'hei_type' => $row['hei_type'] ?? null, 'city' => $row['hei_citymunicipality'] ?? null,
                 'province' => $row['hei_province'] ?? null, 'district' => $row['hei_district'] ?? null,
             ]);

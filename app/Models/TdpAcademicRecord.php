@@ -4,15 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsTo; // <-- You might need this too
 
 class TdpAcademicRecord extends Model
 {
     use HasFactory;
-    protected $guarded = [];
 
     /**
-     * Get the scholar that owns this academic record.
+     * The attributes that aren't mass assignable.
+     * ADD THIS LINE:
+     */
+    protected $guarded = []; // ✅ <-- THIS IS THE FIX
+
+    /**
+     * Get the scholar that this record belongs to.
      */
     public function scholar(): BelongsTo
     {
@@ -20,15 +25,15 @@ class TdpAcademicRecord extends Model
     }
 
     /**
-     * Get the HEI associated with this academic record.
+     * Get the HEI that this record belongs to.
      */
     public function hei(): BelongsTo
     {
-        return $this->belongsTo(Hei::class);
+        return $this->belongsTo(HEI::class);
     }
 
     /**
-     * Get the course associated with this academic record.
+     * Get the course that this record belongs to.
      */
     public function course(): BelongsTo
     {

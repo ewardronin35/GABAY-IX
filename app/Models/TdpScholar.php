@@ -23,6 +23,5 @@ class TdpScholar extends Model
      */
     public function academicRecords(): HasMany
     {
-        return $this->hasMany(TdpAcademicRecord::class);
-    }
+return $this->hasMany(TdpAcademicRecord::class, 'tdp_scholar_id');    }
 }

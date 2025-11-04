@@ -46,7 +46,7 @@ protected $fillable = [
      */
     public function hei(): BelongsTo
     {
-        return $this->belongsTo(Hei::class);
+        return $this->belongsTo(HEI::class);
     }
 
     /**

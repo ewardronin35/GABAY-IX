@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 // Import all necessary models and classes
 use App\Models\TdpAcademicRecord;
 use App\Models\TdpScholar;
-use App\Models\Hei;
+use App\Models\HEI;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -45,7 +45,7 @@ class TdpController extends Controller
                 $scholarQuery->where('family_name', 'like', "%{$search}%");
             });
         });
-       $heiQuery = Hei::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
+       $heiQuery = HEI::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
             ->withCount('tdpAcademicRecords as scholar_count')
             ->orderBy('hei_name');
 
@@ -65,7 +65,7 @@ class TdpController extends Controller
             'filters' => $request->only(['search_db', 'search_ml']),
         ]);
     }
-    public function showHei(Request $request, Hei $hei): Response
+    public function showHei(Request $request, HEI $hei): Response
     {
         $recordsQuery = TdpAcademicRecord::where('tdp_academic_records.hei_id', $hei->id)
                             ->with(['scholar', 'course'])
@@ -212,7 +212,7 @@ public function generateMasterlistPdf(Request $request)
                     continue;
                 }
 
-                $hei = Hei::firstOrCreate(
+                $hei = HEI::firstOrCreate(
                     ['hei_name' => $row['hei_name'] ?? 'N/A'],
                     [
                         'hei_type' => $row['hei_type'] ?? null,

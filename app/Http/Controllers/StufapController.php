@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\StufapAcademicRecord;
 use App\Models\StufapScholar;
-use App\Models\Hei;
+use App\Models\HEI;
 use App\Models\Program;
 use App\Models\Course;
 use Illuminate\Http\Request;
@@ -58,7 +58,7 @@ class StufapController extends Controller
                 }
 
                 // 1. Normalize related data: Find or create the HEI, Course, and Program
-                $hei = Hei::firstOrCreate(['hei_name' => $row['hei_name'] ?? 'N/A']);
+                $hei = HEI::firstOrCreate(['hei_name' => $row['hei_name'] ?? 'N/A']);
                 $course = Course::firstOrCreate(['course_name' => $row['course_name'] ?? 'N/A']);
                 $program = Program::firstOrCreate(['program_name' => $row['program_name'] ?? 'N/A']);
 

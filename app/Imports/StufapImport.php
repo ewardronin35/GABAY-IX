@@ -3,7 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Course;
-use App\Models\Hei;
+use App\Models\HEI;
 use App\Models\StufapAcademicRecord;
 use App\Models\StufapScholar;
 use Maatwebsite\Excel\Concerns\ToModel;
@@ -24,7 +24,7 @@ private $programs;
     public function __construct()
     {
         // Before the import starts, we load all existing HEIs and Courses into memory.
-        $this->heis = Hei::pluck('id', 'hei_name');
+        $this->heis = HEI::pluck('id', 'hei_name');
         $this->courses = Course::pluck('id', 'course_name');
         $this->programs = Program::pluck('id', 'program_name');
     }
@@ -52,7 +52,7 @@ private $programs;
         $heiName = $row['hei_name'] ?? 'N/A';
         $heiId = $this->heis->get($heiName);
         if (!$heiId) {
-            $hei = Hei::create(['hei_name' => $heiName]);
+            $hei = HEI::create(['hei_name' => $heiName]);
             $heiId = $hei->id;
             $this->heis->put($heiName, $heiId); // Add the new HEI to our cache
         }

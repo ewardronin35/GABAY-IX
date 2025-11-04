@@ -110,7 +110,7 @@ public function index(Request $request): Response
             $scholarQuery->where('family_name', 'LIKE', "%{$search}%");
         });
     });
-    $heiQuery = Hei::whereHas('tesAcademicRecords') // Only show HEIs that have TES scholars
+    $heiQuery = HEI::whereHas('tesAcademicRecords') // Only show HEIs that have TES scholars
         ->withCount('tesAcademicRecords as scholar_count')
         ->orderBy('hei_name');
     
@@ -129,7 +129,7 @@ public function index(Request $request): Response
         'heis' => $heis, // ✅ ADD THIS
     ]);
 }
-public function showHei(Request $request, Hei $hei): Response
+public function showHei(Request $request, HEI $hei): Response
 {
     // Get all records for this HEI, with relationships
     $recordsQuery = TesAcademicRecord::where('hei_id', $hei->id)
