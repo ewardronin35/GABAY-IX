@@ -143,7 +143,8 @@ Route::get('/tdp', [TdpController::class, 'index'])->name('tdp.index');
     // ▼▼▼ JUST REMOVE THE DOTS IN THE NAME ▼▼▼
     Route::get('/tdp/masterlist/excel', [TdpController::class, 'generateMasterlistExcel'])->name('tdp.masterlistExcel'); // ✅ Fixed
     Route::get('/tdp/masterlist/pdf', [TdpController::class, 'generateMasterlistPdf'])->name('tdp.masterlistPdf'); // ✅ Fixed
-
+    Route::get('/tdp/hei/{hei}', [TdpController::class, 'showHei'])->name('tdp.hei.show'); // ✅ ADD THIS
+    Route::get('/tdp/scholar/{scholar}', [TdpController::class, 'showScholar'])->name('tdp.scholar.show');
 
 Route::get('/estatskolar', [EstatController::class, 'index'])->name('estatskolar.index');
 Route::put('/estatskolar/bulk-update', [EstatController::class, 'bulkUpdate'])->name('estatskolar.bulkUpdate');
@@ -267,7 +268,7 @@ Route::middleware(['auth', 'role:Budget'])->prefix('budget')->name('budget.')->g
 
     // ✨ NEW: Make '/queue' just a redirect to 'all-requests' with a filter
     Route::get('/queue', function () {
-        return redirect()->route('budget.all-requests', ['status' => 'pending_budget']);
+        return redirect()->route('all-requests', ['status' => 'pending_budget']);
     })->name('queue');
 
     // ✨ This is now our MAIN page for the list

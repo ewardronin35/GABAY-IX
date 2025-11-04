@@ -25,6 +25,7 @@ import { type VariantProps } from "class-variance-authority";
 import { toast } from 'sonner';
 
 import { PaginationLinks } from "@/components/ui/PaginationLinks"; 
+import { request } from "http";
 // --- FIX: Removed unused 'pickBy' and error-causing/unused 'useDebounce' ---
 // import { pickBy } from 'lodash';
 // import { useDebounce } from "@uidotdev/use-debounce";
@@ -144,6 +145,38 @@ const StatusCell = ({ request }: { request: FinancialRequest }) => {
             {relativeTime && (<span className="text-xs text-muted-foreground italic mt-1">{relativeTime}</span>)}
         </div>
     );
+};
+
+const getAge = (request: FullFinancialRequest): string => {
+    let dateToCompare: string | null = null;
+
+    // Determine which date to compare against
+    switch (request.status) {
+        case 'pending_budget':
+            // Age is time since creation
+            dateToCompare = request.created_at;
+            break;
+        case 'pending_accounting':
+            // Age is time since budget approval
+            dateToCompare = request.budget_approved_at;
+            break;
+        case 'pending_cashier':
+            // Age is time since accounting approval
+            dateToCompare = request.accounting_approved_at;
+            break;
+        default:
+            // For 'completed', 'rejected', or other statuses, no age is needed
+            return 'N/A';
+    }
+
+    if (!dateToCompare) {
+        // This is a fallback in case the approval date is missing.
+        // It will calculate from the creation date.
+        dateToCompare = request.created_at;
+    }
+
+    // Use the existing function you import
+    return formatDistanceToNow(new Date(dateToCompare), { addSuffix: true });
 };
 // --- OMITTED HELPERS FOR BREVITY ---
 

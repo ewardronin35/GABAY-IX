@@ -42,7 +42,7 @@ class NewRequestInQueue extends Notification
         $queueStatus = "pending_{$roleName}";
         
         // Build the correct route name, e.g., 'accounting.all-requests'
-        $routeName = "{$roleName}.all-requests";
+        $routeName = strtolower($roleName) . ".all-requests";
         $url = route($routeName, ['status' => $queueStatus]);
 
         return (new MailMessage)

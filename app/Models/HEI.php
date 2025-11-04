@@ -39,4 +39,18 @@ class HEI extends Model
     {
         return $this->hasMany(Education::class);
     }
+  public function tesAcademicRecords(): HasMany
+    {
+        // ▼▼▼ ADD ', 'hei_id'' TO EXPLICITLY SET THE FOREIGN KEY ▼▼▼
+        return $this->hasMany(TesAcademicRecord::class, 'hei_id');
+    }
+
+    /**
+     * Get all of the TDP academic records associated with the HEI.
+     */
+    public function tdpAcademicRecords(): HasMany
+    {
+        // ▼▼▼ ADD ', 'hei_id'' TO EXPLICITLY SET THE FOREIGN KEY ▼▼▼
+        return $this->hasMany(TdpAcademicRecord::class, 'hei_id');
+    }
 }

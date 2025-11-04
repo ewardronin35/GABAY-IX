@@ -45,22 +45,75 @@ class TdpController extends Controller
                 $scholarQuery->where('family_name', 'like', "%{$search}%");
             });
         });
+       $heiQuery = Hei::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
+            ->withCount('tdpAcademicRecords as scholar_count')
+            ->orderBy('hei_name');
+
+        $heiQuery->when($request->input('search_hei'), function ($q, $search) {
+            $q->where('hei_name', 'like', "%{$search}%");
+        });
+
+        $heis = $heiQuery->paginate(25, ['*'], 'hei_page')->withQueryString();
+
         $tdpMasterlist = $mlQuery->latest()->paginate(25, ['*'], 'ml_page')->withQueryString();
 
         // The 'tdpRecords' prop name matches your frontend Index.tsx
         return Inertia::render('Admin/Tdp/Index', [
             'tdpRecords' => $tdpDatabase, 
             'tdpMasterlist' => $tdpMasterlist,
+            'heis' => $heis, // ✅ ADD THIS
             'filters' => $request->only(['search_db', 'search_ml']),
         ]);
     }
+    public function showHei(Request $request, Hei $hei): Response
+    {
+        $recordsQuery = TdpAcademicRecord::where('tdp_academic_records.hei_id', $hei->id)
+                            ->with(['scholar', 'course'])
+                            ->join('courses', 'tdp_academic_records.course_id', '=', 'courses.id')
+                            ->select('tdp_academic_records.*') 
+                            ->orderBy('batch', 'desc')
+                            ->orderBy('courses.course_name', 'asc');
 
-    /**
-     * Fetch aggregated data for the report generator charts.
-     */
- /**
-     * Fetch aggregated data for the report generator charts.
-     */
+        $recordsQuery->when($request->input('batch'), function ($q, $batch) {
+            $q->where('batch', $batch);
+        });
+
+        $records = $recordsQuery->get();
+
+        $groupedData = $records->groupBy(['batch', function ($item) {
+            return $item->course->course_name ?? 'Unspecified Course';
+        }]);
+        
+        $batches = TdpAcademicRecord::where('hei_id', $hei->id)
+                        ->select('batch')
+                        ->distinct()
+                        ->orderBy('batch', 'desc')
+                        ->pluck('batch');
+
+        return Inertia::render('Admin/Tdp/Partials/ShowHei', [
+            'hei' => $hei,
+            'groupedData' => $groupedData,
+            'batches' => $batches,
+            'filters' => $request->only(['batch']),
+        ]);
+    }
+
+    // ▼▼▼ PASTE THIS ENTIRE 'showScholar' METHOD ▼▼▼
+  public function showScholar(TdpScholar $scholar): Response
+    {
+        // ▼▼▼ DELETE THIS LINE ▼▼▼
+        // dd('TESTING: The showScholar method in TdpController IS RUNNING.');
+        
+        // This code will now run:
+        $scholar->load(['academicRecords' => function ($query) {
+            $query->with(['hei', 'course'])
+                  ->orderBy('academic_year', 'desc')
+                  ->orderBy('semester', 'desc');
+        }]);
+        return Inertia::render('Admin/Tdp/Partials/ShowScholar', [
+            'scholar' => $scholar
+        ]);
+    }
     public function fetchStatisticsData()
     {
         // This query is already good!

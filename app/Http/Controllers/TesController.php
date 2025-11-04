@@ -110,7 +110,14 @@ public function index(Request $request): Response
             $scholarQuery->where('family_name', 'LIKE', "%{$search}%");
         });
     });
+    $heiQuery = Hei::whereHas('tesAcademicRecords') // Only show HEIs that have TES scholars
+        ->withCount('tesAcademicRecords as scholar_count')
+        ->orderBy('hei_name');
     
+    $heiQuery->when($request->input('search_hei'), function ($q, $search) {
+        $q->where('hei_name', 'like', "%{$search}%");
+    });
+    $heis = $heiQuery->paginate(25, ['*'], 'hei_page')->withQueryString();
     // Paginate with its own unique page name
     $tesMasterlist = $mlQuery->latest()->paginate(25, ['*'], 'ml_page')->withQueryString();
 
@@ -119,6 +126,41 @@ public function index(Request $request): Response
         'tesDatabase' => $tesDatabase,
         'tesMasterlist' => $tesMasterlist,
         'filters' => $request->only(['search_db', 'search_ml']),
+        'heis' => $heis, // ✅ ADD THIS
+    ]);
+}
+public function showHei(Request $request, Hei $hei): Response
+{
+    // Get all records for this HEI, with relationships
+    $recordsQuery = TesAcademicRecord::where('hei_id', $hei->id)
+                        ->with(['scholar', 'course'])
+                        ->orderBy('batch_no', 'desc') // Use 'batch_no' for TES
+                        ->orderBy('course.course_name', 'asc');
+
+    // Filter by a specific batch if provided
+    $recordsQuery->when($request->input('batch'), function ($q, $batch) {
+        $q->where('batch_no', $batch); // Use 'batch_no' for TES
+    });
+                        
+    $records = $recordsQuery->get();
+
+    // Group the results: First by Batch, then by Course Name
+    $groupedData = $records->groupBy(['batch_no', function ($item) { // Use 'batch_no'
+        return $item->course->course_name ?? 'Unspecified Course';
+    }]);
+
+    // Get a simple list of batches for filtering
+    $batches = TesAcademicRecord::where('hei_id', $hei->id)
+                    ->select('batch_no') // Use 'batch_no'
+                    ->distinct()
+                    ->orderBy('batch_no', 'desc')
+                    ->pluck('batch_no'); // Use 'batch_no'
+
+    return Inertia::render('Admin/Tes/ShowHei', [
+        'hei' => $hei,
+        'groupedData' => $groupedData,
+        'batches' => $batches,
+        'filters' => $request->only(['batch']),
     ]);
 }
 public function upload(Request $request): string

@@ -5,7 +5,8 @@ import { useState, useEffect } from 'react';
 
 // UI Components and Partials
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, FileText, List, Upload } from 'lucide-react';import { Toaster } from 'sonner';
+import { Database, FileText, List, Upload, Building } from 'lucide-react';
+import { Toaster } from 'sonner';
 import { TesDatabaseGrid } from './Partials/TesDatabaseGrid';
 import { TesMasterlistGrid } from './Partials/TesMasterlistGrid';
 import { TesReportGenerator } from './Partials/TesReportGenerator';
@@ -33,11 +34,13 @@ interface Paginator<T> {
 interface TesIndexProps extends PageProps {
     tesDatabase: Paginator<any>;   // Expect 'tesDatabase'
     tesMasterlist: Paginator<any>; // Expect 'tesMasterlist'
-    filters: { search_db?: string, search_ml?: string };
+    heis?: Paginator<any>; // ✅ ADD THIS
+    filters: { search_db?: string, search_ml?: string, search_hei?: string; };
 }
 // ▲▲▲ END OF FIX ▲▲▲
 
-export default function TesIndex({ auth, tesDatabase, tesMasterlist, filters }: TesIndexProps) {
+export default function TesIndex({ auth, tesDatabase, tesMasterlist, filters,  heis,  }: TesIndexProps) {
+
     const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
 
     useEffect(() => {
@@ -56,6 +59,7 @@ export default function TesIndex({ auth, tesDatabase, tesMasterlist, filters }: 
                 <h2 className="text-3xl font-bold tracking-tight">Tertiary Education Subsidy (TES)</h2>
                 <Tabs defaultValue="database" className="space-y-4">
                     <TabsList>
+                        <TabsTrigger value="hei"><Building className="w-4 h-4 mr-2" /> HEIs</TabsTrigger>
                         <TabsTrigger value="database"><Database className="w-4 h-4 mr-2" /> Database</TabsTrigger>
                         <TabsTrigger value="masterlist"><List className="w-4 h-4 mr-2" /> Masterlist</TabsTrigger>
                         <TabsTrigger value="report"><FileText className="w-4 h-4 mr-2" /> Reports</TabsTrigger>
