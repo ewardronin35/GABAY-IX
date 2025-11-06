@@ -150,7 +150,7 @@ export default function Create({ auth }: PageProps<{ auth: { user: User } }>) {
                                     <InputError message={errors.request_type} className="mt-2" />
                                 </div>
                                 <div>
-                                    <Label htmlFor="title">Request Title / Name</Label>
+                                    <Label htmlFor="title">Payee</Label>
                                     <Input
                                         id="title"
                                         value={data.title}
@@ -160,7 +160,7 @@ export default function Create({ auth }: PageProps<{ auth: { user: User } }>) {
                                     <InputError message={errors.title} className="mt-2" />
                                 </div>
                                 <div>
-                                    <Label htmlFor="amount">Amount (PHP)</Label>
+                                    <Label htmlFor="amount">Proposed Amount (PHP)</Label>
                                     <Input
                                         id="amount"
                                         type="number"

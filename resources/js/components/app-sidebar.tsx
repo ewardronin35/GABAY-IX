@@ -56,6 +56,13 @@ const superAdminNavItems: NavItem[] = [
         icon: ClipboardList,
         isActive: route().current('superadmin.travel-claims.*'),
     },
+    {           
+                                        title: 'Validation',
+                                        href: route('unifastrc.validation.index'),
+                                        icon: ClipboardList,
+                                                                                isActive: route().current('unifastrc.validation.index'),
+
+                                    },
     {
         title: 'Scholarship Database',
         icon: Database,
@@ -133,6 +140,7 @@ const superAdminNavItems: NavItem[] = [
             },
         ],
     },
+    
     {
         title: 'Users',
         icon: Users,

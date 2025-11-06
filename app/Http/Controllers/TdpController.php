@@ -25,7 +25,7 @@ class TdpController extends Controller
     /**
      * Display the main TDP page with paginated data for the Database and Masterlist grids.
      */
-    public function index(Request $request): Response
+   public function index(Request $request): Response
     {
         // Query for the main Database Grid (more detailed search)
         $dbQuery = TdpAcademicRecord::with(['scholar', 'hei', 'course']);
@@ -45,7 +45,7 @@ class TdpController extends Controller
                 $scholarQuery->where('family_name', 'like', "%{$search}%");
             });
         });
-       $heiQuery = HEI::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
+       $heiQuery = Hei::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
             ->withCount('tdpAcademicRecords as scholar_count')
             ->orderBy('hei_name');
 
@@ -57,12 +57,28 @@ class TdpController extends Controller
 
         $tdpMasterlist = $mlQuery->latest()->paginate(25, ['*'], 'ml_page')->withQueryString();
 
-        // The 'tdpRecords' prop name matches your frontend Index.tsx
+        // ✅ ADD THESE QUERIES for the report filters
+        $allHeis = Hei::orderBy('hei_name')->get(['id', 'hei_name']);
+        $allBatches = TdpAcademicRecord::select('batch')
+                        ->whereNotNull('batch')
+                        ->distinct()
+                        ->orderBy('batch', 'desc')
+                        ->pluck('batch');
+        // ✅ ADD THIS NEW QUERY
+        $allAcademicYears = TdpAcademicRecord::select('academic_year')
+                        ->whereNotNull('academic_year')
+                        ->distinct()
+                        ->orderBy('academic_year', 'desc')
+                        ->pluck('academic_year');
+
         return Inertia::render('Admin/Tdp/Index', [
             'tdpRecords' => $tdpDatabase, 
             'tdpMasterlist' => $tdpMasterlist,
-            'heis' => $heis, // ✅ ADD THIS
-            'filters' => $request->only(['search_db', 'search_ml']),
+            'heis' => $heis,
+            'filters' => $request->only(['search_db', 'search_ml', 'search_hei']),
+            'allHeis' => $allHeis,           // ✅ ADD THIS PROP
+            'allBatches' => $allBatches,     // ✅ ADD THIS PROP
+            'allAcademicYears' => $allAcademicYears, // ✅ ADD THIS PROP
         ]);
     }
     public function showHei(Request $request, HEI $hei): Response
@@ -114,61 +130,83 @@ class TdpController extends Controller
             'scholar' => $scholar
         ]);
     }
-    public function fetchStatisticsData()
+   public function fetchStatisticsData(Request $request)
     {
-        // This query is already good!
-        $scholarsByProvince = TdpScholar::select('province', DB::raw('count(*) as total'))
-            ->whereNotNull('province')
-            ->groupBy('province')
+        $academicQuery = TdpAcademicRecord::query();
+
+        // ✅ Apply filters to the queries
+        $academicQuery->when($request->input('hei_id'), function ($q, $heiId) {
+            $q->where('hei_id', $heiId);
+        });
+
+        $academicQuery->when($request->input('batch'), function ($q, $batch) {
+            $q->where('batch', $batch);
+        });
+        
+        // ✅ ADDED academic_year filter
+        $academicQuery->when($request->input('academic_year'), function ($q, $ay) {
+            $q->where('academic_year', $ay);
+        });
+
+        // 1. Get Scholars by Province
+        $scholarsByProvince = DB::table('tdp_scholars')
+            ->join('tdp_academic_records', 'tdp_scholars.id', '=', 'tdp_academic_records.tdp_scholar_id')
+            ->select('tdp_scholars.province', DB::raw('count(distinct tdp_scholars.id) as total'))
+            ->whereNotNull('tdp_scholars.province')
+            ->when($request->input('hei_id'), function ($q, $heiId) {
+                $q->where('tdp_academic_records.hei_id', $heiId);
+            })
+            ->when($request->input('batch'), function ($q, $batch) {
+                $q->where('tdp_academic_records.batch', $batch);
+            })
+            // ✅ ADDED academic_year filter
+            ->when($request->input('academic_year'), function ($q, $ay) {
+                $q->where('tdp_academic_records.academic_year', $ay);
+            })
+            ->groupBy('tdp_scholars.province')
             ->orderBy('total', 'desc')
             ->get();
 
-        // ▼▼▼ ADD THESE QUERIES ▼▼▼
+        // 2. Get Total Scholars (based on filters)
+        $totalScholars = $academicQuery->clone()->distinct('tdp_scholar_id')->count();
 
-        // 1. Get Total Scholars
-        // We'll count distinct scholar IDs from the academic records
-        $totalScholars = TdpAcademicRecord::distinct('tdp_scholar_id')->count();
-
-        // 2. Get Scholars by Status
-        $scholarsByStatus = TdpAcademicRecord::select('validation_status', DB::raw('count(distinct tdp_scholar_id) as total'))
+        // 3. Get Scholars by Status
+        $scholarsByStatus = $academicQuery->clone()
+            ->select('validation_status', DB::raw('count(distinct tdp_scholar_id) as total'))
             ->whereNotNull('validation_status')
             ->groupBy('validation_status')
             ->orderBy('total', 'desc')
             ->get()
-            ->pluck('total', 'validation_status'); // pluck makes it a nice { "Status": count } object
+            ->pluck('total', 'validation_status');
 
-        // 3. Get Scholars by HEI
-        $scholarsByHei = TdpAcademicRecord::join('heis', 'tdp_academic_records.hei_id', '=', 'heis.id')
+        // 4. Get Scholars by HEI
+        $scholarsByHei = $academicQuery->clone()
+            ->join('heis', 'tdp_academic_records.hei_id', '=', 'heis.id')
             ->select('heis.hei_name', DB::raw('count(distinct tdp_academic_records.tdp_scholar_id) as total'))
             ->groupBy('heis.hei_name')
             ->orderBy('total', 'desc')
-            ->take(10) // Let's just take the top 10 for the report
+            ->take(10)
             ->get()
             ->pluck('total', 'hei_name');
 
-
-        // ▼▼▼ NOW, UPDATE THE RETURN STATEMENT ▼▼▼
-        // Replace your old return statement with this one to include all the new data:
         return response()->json([
             'scholarsByProvince' => $scholarsByProvince,
-            'total_scholars' => $totalScholars,      // ✅ Added
-            'by_status' => $scholarsByStatus,     // ✅ Added
-            'by_hei' => $scholarsByHei,           // ✅ Added
+            'total_scholars' => $totalScholars,
+            'by_status' => $scholarsByStatus,
+            'by_hei' => $scholarsByHei,
         ]);
     }
-
     /**
      * Generate a PDF of the statistics report with an embedded chart.
      */
-public function generateStatisticsPdf(Request $request)
+ public function generateStatisticsPdf(Request $request)
 {
-    // $validated = $request->validate(['chartImage' => 'required|string']); // DELETE THIS LINE
-    $stats = $this->fetchStatisticsData()->getData(true);
+    // ✅ Fetch stats using the filters from the request
+    $stats = $this->fetchStatisticsData($request)->getData(true);
 
-    // Remove the 'chartImage' from the data passed to the view
+    // ✅ Send ONLY the stats data to the view. No more chart images.
     $pdf = Pdf::loadView('exports.tdp-statistics-report', [
         'stats' => $stats,
-        // 'chartImage' => $validated['chartImage'], // DELETE THIS LINE
     ]);
 
     return $pdf->setPaper('a4', 'portrait')->download('TDP-Statistics-Report.pdf');
@@ -185,20 +223,32 @@ public function generateStatisticsPdf(Request $request)
     /**
      * Generate a PDF of the entire filtered masterlist.
      */
-public function generateMasterlistPdf(Request $request)
+  public function generateMasterlistPdf(Request $request)
     {
         $query = TdpAcademicRecord::with(['scholar', 'hei', 'course']);
+
         $query->when($request->input('search_ml'), function ($q, $search) {
             $q->whereHas('scholar', function ($scholarQuery) use ($search) {
                 $scholarQuery->where('family_name', 'like', "%{$search}%");
             });
         });
 
-        // ▼▼▼ ADD THIS LINE ▼▼▼
-        $records = $query->latest()->limit(1000)->get(); // Limit to 2000 records
+        // ✅ ADDED Filters
+        $query->when($request->input('hei_id'), function ($q, $heiId) {
+            $q->where('hei_id', $heiId);
+        });
 
-        // You might want to add a note to the PDF, but this will stop the timeout
+        $query->when($request->input('batch'), function ($q, $batch) {
+            $q->where('batch', $batch);
+        });
         
+        // ✅ ADDED academic_year filter
+        $query->when($request->input('academic_year'), function ($q, $ay) {
+            $q->where('academic_year', $ay);
+        });
+
+        $records = $query->latest()->limit(1000)->get();
+
         $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', ['records' => $records]);
         return $pdf->setPaper('legal', 'landscape')->download('TDP-Masterlist.pdf');
     }

@@ -27,6 +27,7 @@ use App\Http\Controllers\GlobalAcademicPeriodController;
 use App\Http\Controllers\BatchController;
 use App\Http\Controllers\ChatbotController; // <-- Add this
 use App\Http\Controllers\FinancialRequestController;
+use App\Http\Controllers\UnifastRc\ValidationController;
 
 // All your other routes are here...
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
@@ -180,10 +181,23 @@ Route::get('/estat/masterlist/pdf', [EstatController::class, 'generateMasterlist
     });
 });
 
-Route::middleware(['auth', 'role:Scholarship (Unifast) Admin'])->group(function () {
-    Route::get('/admin/batches', [BatchController::class, 'adminDashboard'])->name('admin.batches.dashboard');
-    Route::get('/admin/batches/create', [BatchController::class, 'create'])->name('admin.batches.create');
-    Route::post('/admin/batches', [BatchController::class, 'store'])->name('admin.batches.store');
+Route::middleware(['auth', 'verified', 'permission:validate submissions'])    ->prefix('unifastrc')
+    ->name('unifastrc.')
+    ->group(function () {
+    
+    /**
+     * The main dashboard for validation.
+     * This will show the lists of pending scholars.
+     */
+    Route::get('/validation', [ValidationController::class, 'index'])
+         ->name('validation.index');
+         
+    /**
+     * This route will handle the "Save Changes" button
+     * when the RC submits their validation work.
+     */
+    Route::put('/validation/submit', [ValidationController::class, 'bulkUpdate'])
+         ->name('validation.bulkUpdate');
 });
 
 // Chief

@@ -6,43 +6,74 @@
     <title>TDP Masterlist</title>
     <style>
         /* This CSS is critical for styling the PDF */
+        @page {
+            margin: 20px; /* Reduced margin */
+        }
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 10px; /* Legal-landscape paper is wide, so we use small text */
+            font-size: 8px; /* Legal-landscape paper is wide, so we use small text */
         }
-        table {
+        
+        /* --- HEADER STYLES --- */
+        .header-table {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+            border: 0;
+            border-bottom: 1px solid #333;
+            margin-bottom: 15px;
         }
-        th, td {
-            border: 1px solid #777;
-            padding: 5px;
-            text-align: left;
-            /* This helps prevent text from breaking in the middle of a word */
-            word-wrap: break-word; 
+        .header-table td {
+            border: 0;
+            padding: 0 5px;
+            text-align: center;
+            vertical-align: middle;
         }
-        th {
-            background-color: #f0f0f0;
+        .header-logo {
+            width: 80px; /* Fixed width for logos */
+        }
+        .header-logo img {
+            max-width: 100%;
+            height: auto;
+        }
+        .header-text {
+            line-height: 1.2;
+        }
+        .header-text .line-1 {
+            font-size: 10px;
+        }
+        .header-text .line-2 {
+            font-size: 10px;
+        }
+        .header-text .line-3 {
+            font-size: 14px;
             font-weight: bold;
         }
-        .header {
-            text-align: center;
-        }
-        .header h2 {
-            margin: 0;
-            padding: 0;
-            font-size: 16px;
-        }
-        .header p {
-            margin: 0;
-            padding: 0;
+        .header-text .line-4 {
             font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
         }
+        /* --- END HEADER STYLES --- */
+
         .date {
             text-align: right;
-            font-size: 10px;
-            margin-top: 10px;
+            font-size: 9px;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .main-table th, .main-table td {
+            border: 1px solid #777;
+            padding: 4px;
+            text-align: left;
+            word-wrap: break-word; 
+        }
+        .main-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
         }
         .no-records {
             text-align: center;
@@ -53,16 +84,27 @@
 </head>
 <body>
 
-    <div class="header">
-        <h2>Tulong Dunong Program (TDP)</h2>
-        <p>Official Masterlist</p>
-    </div>
-
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">
+                <img src="{{ public_path('images/ched-logo.png') }}" alt="CHED Logo">
+            </td>
+            <td class="header-text">
+                <div class="line-1">Republic of the Philippines</div>
+                <div class="line-2">OFFICE OF THE PRESIDENT</div>
+                <div class="line-3">COMMISSION ON HIGHER EDUCATION</div>
+                <div class="line-4">Tulong Dunong Program (TDP) Masterlist</div>
+            </td>
+            <td class="header-logo">
+                <img src="{{ public_path('images/bagong-pilipinas-logo.png') }}" alt="Bagong Pilipinas Logo">
+            </td>
+        </tr>
+    </table>
     <div class="date">
         Date Generated: {{ date('F j, Y') }}
     </div>
 
-    <table>
+    <table class="main-table">
         <thead>
             <tr>
                 <th>Award No.</th>

@@ -63,7 +63,58 @@ class FinancialRequestController extends Controller
             'filters' => $filters, 
         ]);
     }
+   public function show(FinancialRequest $financialRequest)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
 
+        $isOwner = $financialRequest->user_id === $user->id;
+        $isApprover = $user->hasAnyRole(['Budget', 'Accounting', 'Cashier', 'Super Admin']);
+
+        if (!$isOwner && !$isApprover) {
+            abort(403);
+        }
+
+        $financialRequest->load('user', 'attachments', 'logs.user'); // Make sure logs.user is loaded
+
+        $isBudgetQueue = str_contains(url()->previous(), '/budget/queue');
+        $isBudgetAll = str_contains(url()->previous(), '/budget/all-requests');
+
+        if ($isBudgetQueue) {
+            $requests = FinancialRequest::where('status', 'pending_budget')
+                ->with('user:id,name')
+                ->latest()
+                ->paginate(10)
+                ->withQueryString();
+
+            return Inertia::render('Budget/Queue', [
+                'requests' => $requests,
+                'request' => $financialRequest,
+                'filters' => [],
+            ]);
+        }
+
+        if ($isBudgetAll) {
+            $requests = FinancialRequest::query()->with('user:id,name')->paginate(10);
+
+            return Inertia::render('Budget/AllRequests', [
+                'requests' => $requests,
+                'request' => $financialRequest,
+                'filters' => [],
+            ]);
+        }
+
+        $requests = FinancialRequest::where('user_id', $financialRequest->user_id)
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return Inertia::render('Financial/Index', [
+            'requests' => $requests,
+            'request' => $financialRequest,
+            'filters' => [],
+        ]);
+    }
     public function budgetExport(Request $request)
     {
         $filters = $request->only(['sort', 'direction', 'type', 'status']);

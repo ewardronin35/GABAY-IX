@@ -3,70 +3,91 @@
 namespace App\Exports;
 
 use App\Models\TdpAcademicRecord;
+use Illuminate\Http\Request;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithDrawings;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Font;
+use Maatwebsite\Excel\Concerns\WithCustomStartCell;
 
-class TdpMasterlistExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize
+class TdpMasterlistExport implements 
+    FromQuery, 
+    WithHeadings, 
+    WithMapping, 
+    ShouldAutoSize,
+    WithDrawings,
+    WithEvents,
+    WithCustomStartCell
 {
-    /**
-    * @return \Illuminate\Database\Query\Builder
-    */
-    public function query()
+    protected $request;
+
+    // ✅ MODIFIED: Accept the full Request object
+    public function __construct(Request $request)
     {
-        // Return the base query to fetch the records with their relationships.
-        // The FromQuery concern will handle executing it efficiently.
-        return TdpAcademicRecord::query()->with(['scholar', 'hei', 'course']);
+        $this->request = $request;
     }
 
-    /**
-    * @return array
-    */
+    // ✅ MODIFIED: Apply filters from the request
+  public function query()
+    {
+        $query = TdpAcademicRecord::query()->with(['scholar', 'hei', 'course']);
+        
+        // Filter by search
+        $query->when($this->request->input('search_ml'), function ($q, $search) {
+            $q->whereHas('scholar', function ($scholarQuery) use ($search) {
+                $scholarQuery->where('family_name', 'like', "%{$search}%");
+            });
+        });
+
+        // Filter by HEI
+        $query->when($this->request->input('hei_id'), function ($q, $heiId) {
+            $q->where('hei_id', $heiId);
+        });
+
+        // Filter by Batch
+        $query->when($this->request->input('batch'), function ($q, $batch) {
+            $q->where('batch', $batch);
+        });
+        
+        // ✅ ADDED academic_year filter
+        $query->when($this->request->input('academic_year'), function ($q, $ay) {
+            $q->where('academic_year', $ay);
+        });
+        
+        return $query->latest();
+    }
+
     public function headings(): array
     {
-        // These are the column headers that will appear in the Excel file.
         return [
-            'SEQ',
-            'APP NO',
-            'AWARD NO',
-            'HEI NAME',
-            'HEI TYPE',
-            'HEI CITY/MUNICIPALITY',
-            'HEI PROVINCE',
-            'HEI DISTRICT',
-            'LASTNAME',
-            'FIRSTNAME',
-            'EXT',
-            'MIDDLENAME',
-            'SEX',
-            'COURSE ENROLLED',
-            'YEAR LEVEL',
-            'STREET',
-            'TOWN/CITY',
-            'DISTRICT',
-            'PROVINCE',
-            'CONTACT',
-            'EMAIL',
-            'BATCH',
-            'STATUS OF VALIDATION',
+            'SEQ', 'APP NO', 'AWARD NO',
+            'HEI NAME', 'HEI TYPE', 'HEI CITY/MUNICIPALITY', 'HEI PROVINCE', 'HEI DISTRICT',
+            'LASTNAME', 'FIRSTNAME', 'EXT', 'MIDDLENAME', 'SEX',
+            'COURSE ENROLLED', 'YEAR LEVEL',
+            'STREET', 'TOWN/CITY', 'DISTRICT', 'PROVINCE',
+            'CONTACT', 'EMAIL',
+            'BATCH', 'STATUS OF VALIDATION',
         ];
     }
 
     /**
-    * @param TdpRecord $record
-    * @return array
+    * @param TdpAcademicRecord $record
     */
     public function map($record): array
     {
-        // This method transforms each record from the query into a flat array.
-        // It matches the order of the headings() array above.
         return [
             $record->seq,
             $record->app_no,
             $record->award_no,
             $record->hei->hei_name ?? 'N/A',
-            $record->hei->type_of_heis ?? 'N/A', // Assuming 'type_of_heis' is the column name in your HEI model
+            $record->hei->hei_type ?? 'N/A',
             $record->hei->city ?? 'N/A',
             $record->hei->province ?? 'N/A',
             $record->hei->district ?? 'N/A',
@@ -86,5 +107,61 @@ class TdpMasterlistExport implements FromQuery, WithHeadings, WithMapping, Shoul
             $record->batch,
             $record->validation_status,
         ];
+    }
+
+    public function drawings()
+    {
+        $chedLogo = new Drawing();
+        $chedLogo->setName('CHED Logo');
+        $chedLogo->setPath(public_path('images/ched-logo.png'));
+        $chedLogo->setHeight(90);
+        $chedLogo->setCoordinates('A1');
+
+        $bpLogo = new Drawing();
+        $bpLogo->setName('Bagong Pilipinas Logo');
+        $bpLogo->setPath(public_path('images/bagong-pilipinas-logo.png'));
+        $bpLogo->setHeight(90);
+        
+        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($this->headings()));
+        $bpLogo->setCoordinates($lastColumn.'1');
+
+        return [$chedLogo, $bpLogo];
+    }
+
+    public function startCell(): string
+    {
+        return 'A8';
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $lastColumnIndex = count($this->headings());
+                $mergeRange = 'B2:'.$this->getColumnLetter($lastColumnIndex - 1).'6';
+
+                $sheet->mergeCells($mergeRange);
+                $sheet->getCell('B2')->setValue(
+                    "Republic of the Philippines\n" .
+                    "OFFICE OF THE PRESIDENT\n" .
+                    "COMMISSION ON HIGHER EDUCATION\n\n" .
+                    "Tulong Dunong Program (TDP) Masterlist"
+                );
+
+                $style = $sheet->getStyle('B2');
+                $style->getAlignment()->setWrapText(true);
+                $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $style->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+                $style->getFont()->setBold(true);
+                $style->getFont()->setSize(14);
+                
+                $sheet->getStyle('A8:'.$this->getColumnLetter($lastColumnIndex).'8')->getFont()->setBold(true);
+            },
+        ];
+    }
+    
+    private function getColumnLetter($index) {
+        return \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index);
     }
 }

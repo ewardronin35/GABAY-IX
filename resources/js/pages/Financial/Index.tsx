@@ -483,13 +483,13 @@ const requestSort = (key: keyof FinancialRequest) => {
                                                 <InputError message={errors.request_type} className="mt-2" />
                                             </div>
                                             <div>
-                                                <Label htmlFor="amount">Amount (PHP)</Label>
+                                                <Label htmlFor="amount">Proposed Amount (PHP)</Label>
                                                 <Input id="amount" type="number" step="0.01" min="0.01" value={data.amount} onChange={(e) => setData('amount', e.target.value)} required />
                                                 <InputError message={errors.amount} className="mt-2" />
                                             </div>
                                         </div>
                                         <div>
-                                            <Label htmlFor="title">Request Title / Name</Label>
+                                            <Label htmlFor="title">Payee</Label>
                                             <Input id="title" value={data.title} onChange={(e) => setData('title', e.target.value)} required />
                                             <InputError message={errors.title} className="mt-2" />
                                         </div>

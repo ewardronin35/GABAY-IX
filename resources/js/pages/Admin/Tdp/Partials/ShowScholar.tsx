@@ -18,7 +18,7 @@ interface Scholar {
     town_city: string;
     contact_no: string;
     email_address: string;
-    academicRecords: AcademicRecord[];
+    academic_records: AcademicRecord[]; // ✅ CHANGED: from academicRecords
 }
 
 interface AcademicRecord {
@@ -40,6 +40,9 @@ interface ShowScholarProps extends PageProps {
 
 export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
     const fullName = [scholar.given_name, scholar.middle_name, scholar.family_name, scholar.extension_name].filter(Boolean).join(' ');
+
+    // You can remove this console.log now if you want
+    console.log('--- SHOW SCHOLAR PROPS ---', scholar);
 
     return (
         <AuthenticatedLayout
@@ -85,8 +88,10 @@ export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
                                 </TableHeader>
                               <TableBody>
     {/* ▼▼▼ THIS IS THE FIX ▼▼▼ */}
-    {scholar.academicRecords && scholar.academicRecords.length > 0 ? (
-        scholar.academicRecords.map((record) => (
+    {/* ✅ CHANGED: from scholar.academicRecords */}
+    {scholar.academic_records && scholar.academic_records.length > 0 ? (
+        // ✅ CHANGED: from scholar.academicRecords
+        scholar.academic_records.map((record) => (
                                             <TableRow key={record.id}>
                                                 <TableCell>{record.academic_year} / {record.semester}</TableCell>
                                                 <TableCell>{record.hei?.hei_name || 'N/A'}</TableCell>

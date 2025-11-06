@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // <-- You might need this too
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TdpAcademicRecord extends Model
 {
@@ -12,7 +12,8 @@ class TdpAcademicRecord extends Model
 
     /**
      * The attributes that aren't mass assignable.
-     * ADD THIS LINE:
+     *
+     * @var array
      */
     protected $guarded = []; // ✅ <-- THIS IS THE FIX
 
@@ -29,7 +30,7 @@ class TdpAcademicRecord extends Model
      */
     public function hei(): BelongsTo
     {
-        return $this->belongsTo(HEI::class);
+        return $this->belongsTo(Hei::class);
     }
 
     /**

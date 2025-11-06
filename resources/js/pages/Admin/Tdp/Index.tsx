@@ -44,12 +44,13 @@ interface TdpIndexProps extends PageProps {
         search_db?: string;
         search_ml?: string;
         search_hei?: string;
+        
     };
-    // ✅ ADD THIS
-    tab?: string;
+    allHeis: { id: number; hei_name: string }[]; // ✅ ADD THIS
+    allBatches: string[]; // ✅ ADD THIS
+    allAcademicYears: string[]; // ✅ ADD THIS LINE
 }
-export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filters }: TdpIndexProps) {
-    const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
+export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filters, allHeis, allBatches, allAcademicYears }: TdpIndexProps) {    const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
 
     // ✅ START: Tab Management
     // Get the current URL from Inertia
@@ -144,8 +145,13 @@ export default function TdpIndex({ auth, tdpRecords, tdpMasterlist, heis, filter
                     ) : <p className="p-8 text-center text-muted-foreground">Data not available.</p>}
                 </TabsContent>
 
-                    <TabsContent value="report" className="space-y-4">
-                       <TdpReportGenerator />
+                   <TabsContent value="report" className="space-y-4">
+                       {/* ✅ PASS THE PROPS DOWN */}
+                       <TdpReportGenerator 
+                            allHeis={allHeis}
+                            allBatches={allBatches}
+                            allAcademicYears={allAcademicYears} // ✅ ADD THIS PROP
+                       />
                     </TabsContent>
                     
                     <TabsContent value="import" className="space-y-4">
