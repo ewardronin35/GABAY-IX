@@ -69,4 +69,16 @@ class Scholar extends Model
 {
     return $this->hasMany(BatchScholar::class);
 }
+public function enrollments()
+{
+    return $this->hasMany(ScholarEnrollment::class);
+}
+
+/**
+ * Get all the programs this scholar is enrolled in.
+ */
+public function programs()
+{
+    return $this->belongsToMany(Program::class, 'scholar_enrollments');
+}
 }
