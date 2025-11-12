@@ -9,19 +9,20 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-public function up(): void
-{
-    Schema::table('academic_years', function (Blueprint $table) {
-        // This assumes you've already added 'app_no' from our previous steps
-        $table->string('award_number')->nullable()->after('app_no');
-    });
-}
+    public function up(): void
+    {
+        Schema::table('districts', function (Blueprint $table) {
+            $table->string('representative')->nullable();
+            //
+        });
+    }
+
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::table('academic_years', function (Blueprint $table) {
+        Schema::table('districts', function (Blueprint $table) {
             //
         });
     }

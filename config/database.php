@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -42,12 +42,12 @@ return [
             'synchronous' => null,
         ],
 
-        'mysql' => [
+       'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
+            'database' => env('DB_DATABASE', 'laravel'), // <-- Points to your NEW DB
             'username' => env('DB_USERNAME', 'root'),
             'password' => env('DB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
@@ -55,8 +55,29 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'strict' => true,
+            'strict' => true, // <-- Good for new app
             'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        // --- 2. ADDED THIS NEW BLOCK ---
+        // This is the special connection for your OLD data
+        'gabay_ix_old_backup' => [
+            'driver'         => 'mysql',
+            'host'           => env('DB_HOST', '127.0.0.1'), // Assumes same host
+            'port'           => env('DB_PORT', '3306'),     // Assumes same port
+            'database'       => 'gabay_ix_old_backup', // <-- This is your OLD database
+            'username'       => env('DB_USERNAME', 'root'),  // Assumes same user
+            'password'       => env('DB_PASSWORD', ''),      // Assumes same password
+            'unix_socket'    => env('DB_SOCKET', ''),
+            'charset'        => 'utf8mb4',
+            'collation'      => 'utf8mb4_unicode_ci',
+            'prefix'         => '',
+            'prefix_indexes' => true,
+            'strict'         => false, // <-- Set to false for old data
+            'engine'         => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

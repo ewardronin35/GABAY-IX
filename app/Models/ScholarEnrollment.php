@@ -43,8 +43,11 @@ class ScholarEnrollment extends Model
     /**
      * Get all the academic records for this specific enrollment.
      */
-    public function academic_records()
-    {
-        return $this->hasMany(AcademicRecord::class);
-    }
+ /**
+ * Get all of the academic records for the ScholarEnrollment.
+ */
+public function academicRecords()
+{
+    return $this->hasMany(AcademicRecord::class, 'scholar_enrollment_id');
+}
 }

@@ -128,7 +128,6 @@ class CsmpScholarController extends BaseController // Change to extend BaseContr
                              ->with('info', 'You have already submitted an application for this period.');
         }
 
-        Log::info('Attempting to send profilePhotoUrl: ' . $request->user()->avatar_url);
        return Inertia::render('Scholar/Csmp/Application', [
             // --- THIS IS THE FIX ---
             // We changed profile_photo_url to 'avatar' to match your users table

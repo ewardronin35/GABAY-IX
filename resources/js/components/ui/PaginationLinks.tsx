@@ -31,7 +31,7 @@ export function PaginationLinks({ links }: { links: PageLink[] }) {
                 <Button
                     key={index}
                     // This onClick is correct and preserves your scroll
-                    onClick={() => link.url && router.get(link.url, {}, { preserveScroll: true })}
+                    onClick={() => link.url && router.get(link.url, {}, { preserveScroll: true, preserveState: true })}
                     
                     // ✨ FIX: Removed the onMouseEnter handler that caused the bug
                     // onMouseEnter={() => handlePrefetch(link.url)} 

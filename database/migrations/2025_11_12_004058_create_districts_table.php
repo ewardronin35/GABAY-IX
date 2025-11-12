@@ -9,12 +9,13 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-public function up(): void
+   public function up(): void
 {
-    Schema::create('courses', function (Blueprint $table) {
+    Schema::create('districts', function (Blueprint $table) {
         $table->id();
-        $table->string('course_name')->unique();
-        $table->string('major')->nullable();
+        $table->foreignId('province_id')->constrained('provinces');
+        $table->string('name'); // "1st District, Zamboanga City"
+        $table->string('representative')->nullable();
         $table->timestamps();
     });
 }
@@ -24,6 +25,6 @@ public function up(): void
      */
     public function down(): void
     {
-        Schema::dropIfExists('courses');
+        Schema::dropIfExists('districts');
     }
 };

@@ -1,4 +1,12 @@
-import { router, Link } from '@inertiajs/react';
+// resources/js/pages/Admin/Tdp/Partials/TdpHeiGrid.tsx
+
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import {
     Table,
     TableBody,
@@ -6,97 +14,97 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useDebouncedCallback } from 'use-debounce';
-import { Eye } from 'lucide-react';
-import {PaginationLinks} from '@/components/ui/PaginationLinks'; // Assuming you have this
-import {route} from 'ziggy-js';
-// Props for the grid
-interface Paginator<T> {
-    data: T[];
-    links: any[];
-    current_page: number;
-    last_page: number;
-    total: number;
-    from: number;
-    to: number;
-}
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Link } from "@inertiajs/react";
+import type { TdpPageProps } from "../Index";
+import { Pagination } from "@/components/ui/pagination"; 
+import { Input } from "@/components/ui/input";
+import { useSearch } from "@/hooks/useSearch";
+// --- ▼▼▼ FIX: Import Button and Eye icon ▼▼▼ ---
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
+import { route } from "ziggy-js";
+// --- ▲▲▲ END OF FIX ▲▲▲ ---
 
-interface Hei {
-    id: number;
-    hei_name: string;
-    scholar_count: number; // This comes from 'withCount' in the controller
-}
+type TdpHeiGridProps = {
+    paginatedHeis: TdpPageProps["paginatedHeis"];
+    filters: TdpPageProps["filters"];
+};
 
-interface TdpHeiGridProps {
-    heis: Paginator<Hei>;
-    filters?: {
-        search_hei?: string;
-    };
-}
-
-export function TdpHeiGrid({ heis, filters }: TdpHeiGridProps) {
-    
-    // Handle search filtering
-    const handleSearch = useDebouncedCallback((value: string) => {
-        router.get(
-            route('superadmin.tdp.index'), // Assumes this is your route name
-            { search_hei: value },
-            { preserveState: true, replace: true }
-        );
-    }, 300);
+export function TdpHeiGrid({ paginatedHeis, filters }: TdpHeiGridProps) {
+    const { search, handleSearch } = useSearch("superadmin.tdp.index", filters.search_db, "search_db");
 
     return (
-        <div className="space-y-4">
-            {/* Search Bar */}
-            <Input
-                placeholder="Search by HEI name..."
-                defaultValue={filters?.search_hei}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="max-w-sm"
-            />
-
-            {/* Data Table */}
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>HEI Name</TableHead>
-                            <TableHead className="w-[150px] text-center">Scholar Count</TableHead>
-                            <TableHead className="w-[100px] text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {heis.data.length > 0 ? (
-                            heis.data.map((hei) => (
-                                <TableRow key={hei.id}>
-                                    <TableCell className="font-medium">{hei.hei_name}</TableCell>
-                                    <TableCell className="text-center">{hei.scholar_count}</TableCell>
-                                    <TableCell className="text-right">
-                                        {/* This link points to a route we will create in the next step */}
-                                        <Link href={route('superadmin.tdp.hei.show', { hei: hei.id })}>
-                                            <Button variant="outline" size="sm">
-                                                <Eye className="w-4 h-4 mr-2" />
-                                                View
-                                            </Button>
-                                        </Link>
+        <Card>
+            <CardHeader>
+                <CardTitle>TDP Database by HEI</CardTitle>
+                <CardDescription>
+                    A paginated list of all HEIs with TDP scholars.
+                </CardDescription>
+                <Input
+                    type="search"
+                    placeholder="Search HEIs..."
+                    value={search}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="max-w-sm"
+                />
+            </CardHeader>
+            <CardContent>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>HEI Name</TableHead>
+                                <TableHead>Total Scholars</TableHead>
+                                {/* --- ▼▼▼ FIX: Added Actions column ▼▼▼ --- */}
+                                <TableHead className="text-right">Actions</TableHead>
+                                {/* --- ▲▲▲ END OF FIX ▲▲▲ --- */}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {paginatedHeis.data.length > 0 ? (
+                                paginatedHeis.data.map((hei) => (
+                                    <TableRow key={hei.id}>
+                                        <TableCell className="font-medium">
+                                            {hei.hei_name}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary">
+                                                {hei.scholar_count}
+                                            </Badge>
+                                        </TableCell>
+                                        {/* --- ▼▼▼ FIX: Added Action button cell ▼▼▼ --- */}
+                                        <TableCell className="text-right">
+                                            <Link
+                                                href={route(
+                                                    "superadmin.tdp.hei.show",
+                                                    hei.id
+                                                )}
+                                            >
+                                                <Button variant="ghost" size="icon">
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </Link>
+                                        </TableCell>
+                                        {/* --- ▲▲▲ END OF FIX ▲▲▲ --- */}
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={3} // <-- Changed from 2 to 3
+                                        className="h-24 text-center"
+                                    >
+                                        No HEIs found.
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center">
-                                    No HEIs found.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-            
-            {/* Pagination */}
-<PaginationLinks links={heis.links} />        </div>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <Pagination paginator={paginatedHeis} className="mt-4" />
+            </CardContent>
+        </Card>
     );
 }

@@ -9,11 +9,12 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-// In the new migration file
-public function up(): void
+   public function up(): void
 {
-    Schema::table('academic_years', function (Blueprint $table) {
-        $table->string('processor_name')->nullable()->after('financial_benefit_amount');
+    Schema::create('provinces', function (Blueprint $table) {
+        $table->id();
+        $table->string('name')->unique(); // "Zamboanga del Sur"
+        $table->timestamps();
     });
 }
 
@@ -22,8 +23,6 @@ public function up(): void
      */
     public function down(): void
     {
-        Schema::table('academic_years', function (Blueprint $table) {
-            //
-        });
+        Schema::dropIfExists('provinces');
     }
 };

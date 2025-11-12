@@ -31,33 +31,51 @@ interface Paginator<T> {
 
 // ▼▼▼ THIS IS THE FIX ▼▼▼
 // Update the props to match what the controller is sending.
-interface TesIndexProps extends PageProps {
-    tesDatabase: Paginator<any>;   // Expect 'tesDatabase'
-    tesMasterlist: Paginator<any>; // Expect 'tesMasterlist'
-    heis?: Paginator<any>; // ✅ ADD THIS
-    filters: { search_db?: string, search_ml?: string, search_hei?: string; };
+interface TesPageProps extends PageProps {
+    auth: { user: User };
+    database_tes: Paginator<any>; // Changed from tesDatabase
+    ml_tes: Paginator<any>;         // Changed from tesMasterlist
+    hei_list: any[];
+    course_list: any[];
+    filters_db: { search_db?: string }; // Changed from filters
+    filters_ml: { search_ml?: string }; // Changed from filters
 }
 // ▲▲▲ END OF FIX ▲▲▲
 
-export default function TesIndex({ auth, tesDatabase, tesMasterlist, filters,  heis,  }: TesIndexProps) {
-
+export default function Tes({
+    auth,
+    database_tes, // Renamed prop
+    ml_tes,       // Renamed prop
+    hei_list,
+    course_list,
+    filters_db,   // Renamed prop
+    filters_ml,   // Renamed prop
+}: TesPageProps) {
     const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
 
     useEffect(() => {
-        const observer = new MutationObserver(() => setTableClassName(getInitialThemeClass()));
-        if (document.documentElement) {
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    setTableClassName(getInitialThemeClass());
+                }
+            });
+        });
+        if (typeof window !== 'undefined' && document.documentElement) {
+            observer.observe(document.documentElement, { attributes: true });
         }
         return () => observer.disconnect();
     }, []);
 
-   return (
-        <AuthenticatedLayout user={auth.user as User}>
-            <Head title="TES Database" />
+    return (
+        <AuthenticatedLayout
+            user={auth.user}
+            header={<h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">TES Module</h2>}
+        >
+            <Head title="TES Module" />
             <Toaster richColors position="top-right" />
-            <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-                <h2 className="text-3xl font-bold tracking-tight">Tertiary Education Subsidy (TES)</h2>
-                <Tabs defaultValue="database" className="space-y-4">
+            <div className="py-12">
+                <Tabs defaultValue="database" className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
                     <TabsList>
                         <TabsTrigger value="hei"><Building className="w-4 h-4 mr-2" /> HEIs</TabsTrigger>
                         <TabsTrigger value="database"><Database className="w-4 h-4 mr-2" /> Database</TabsTrigger>
@@ -67,10 +85,12 @@ export default function TesIndex({ auth, tesDatabase, tesMasterlist, filters,  h
                     </TabsList>
 
                     <TabsContent value="database" className="space-y-4">
-                        {tesDatabase && <TesDatabaseGrid records={tesDatabase} filters={filters} tableClassName={tableClassName} />}
+                        {/* ▼▼▼ FIX: Pass the correct props down ▼▼▼ */}
+                        {database_tes && <TesDatabaseGrid records={database_tes} filters={filters_db} tableClassName={tableClassName} />}
                     </TabsContent>
                     <TabsContent value="masterlist" className="space-y-4">
-                        {tesMasterlist && <TesMasterlistGrid records={tesMasterlist} filters={filters} />}
+                        {/* ▼▼▼ FIX: Pass the correct props down ▼▼▼ */}
+                        {ml_tes && <TesMasterlistGrid records={ml_tes} filters={filters_ml} />}
                     </TabsContent>
                     <TabsContent value="report" className="space-y-4">
                         <TesReportGenerator />

@@ -1,181 +1,148 @@
 import AuthenticatedLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
-import { type PageProps, type User } from '@/types';
+import {
+    PageProps,
+    PaginatedResponse,
+    ScholarEnrollment,
+    HEI,
+} from "@/types";
+import { Head } from "@inertiajs/react";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import {
     Accordion,
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
-} from '@/components/ui/accordion';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {route} from 'ziggy-js';
-// --- Define Types ---
-interface Hei {
-    id: number;
-    hei_name: string;
-}
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
+import { columns } from "./TdpHeiGridColumns"; // Assuming you reuse columns
+import { Pagination } from "@/components/ui/pagination";
 
-interface Scholar {
-    id: number;
-    family_name: string;
-    given_name: string;
-    middle_name: string;
-}
+type ShowHeiProps = PageProps & {
+    hei: HEI;
+    enrollments: PaginatedResponse<ScholarEnrollment>;
+};
 
-interface AcademicRecord {
-    id: number;
-    scholar: Scholar;
-    year_level: string;
-    validation_status: string;
-}
+export default function ShowHei({ auth, hei, enrollments }: ShowHeiProps) {
+    if (!auth.user) return null;
 
-// This is a nested object: { "Batch Name": { "Course Name": [Record1, Record2] } }
-type GroupedData = Record<string, Record<string, AcademicRecord[]>>;
+    /**
+     * Groups enrollments by their first academic record's year.
+     */
+    const groupEnrollmentsByYear = (
+        enrollmentsList: ScholarEnrollment[] | null | undefined
+    ) => {
+        // If the list is null or undefined, return an empty object
+        if (!enrollmentsList) {
+            return {};
+        }
 
-interface ShowHeiProps extends PageProps {
-    hei: Hei;
-    groupedData: GroupedData;
-    batches: string[];
-    filters: {
-        batch?: string;
-    };
-}
+        return enrollmentsList.reduce(
+            (acc, enrollment) => {
+                // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+                // We must use optional chaining on 'academicRecords' *before*
+                // trying to access its [0] index.
+                const year =
+                    enrollment.academicRecords?.[0]?.academic_year || "Unknown";
+                // --- ▲▲▲ END OF FIX ▲▲▲ ---
 
-export default function ShowHei({ auth, hei, groupedData, batches, filters }: ShowHeiProps) {
-    const dataEntries = Object.entries(groupedData);
-
-    const handleBatchFilter = (batch: string) => {
-        router.get(
-            route('superadmin.tdp.hei.show', { hei: hei.id }),
-            { batch: batch === 'all' ? undefined : batch },
-            { preserveState: true, replace: true }
+                if (!acc[year]) {
+                    acc[year] = [];
+                }
+                acc[year].push(enrollment);
+                return acc;
+            },
+            {} as Record<string, ScholarEnrollment[]>
         );
     };
 
+    // This line is now safe because groupEnrollmentsByYear always returns an object
+    const academicYears = Object.entries(
+        groupEnrollmentsByYear(enrollments.data)
+    ).sort(
+        ([yearA], [yearB]) =>
+            parseInt(yearB.split("-")[0] || "0") -
+            parseInt(yearA.split("-")[0] || "0")
+    ); // Sort descending
+
     return (
         <AuthenticatedLayout
-            user={auth.user as User}
-            page_title={`HEI Profile: ${hei.hei_name}`}
+            user={auth.user}
+            header={
+                <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+                    {hei.hei_name}
+                </h2>
+            }
         >
             <Head title={hei.hei_name} />
 
-            <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-                <div className="flex items-center justify-between">
-                    <Link href={route('superadmin.tdp.index')} className="text-sm text-primary hover:underline">
-                        &larr; Back to TDP Module
-                    </Link>
-
-                    {/* Batch Filter Select */}
-                    <div className="w-64">
-                        <Select onValueChange={handleBatchFilter} defaultValue={filters.batch || 'all'}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Filter by batch..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Batches</SelectItem>
-                                {batches.map((batch) => (
-                                    <SelectItem key={batch} value={batch}>
-                                        {batch}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{hei.hei_name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {dataEntries.length > 0 ? (
-                            <Accordion type="multiple" className="w-full">
-                                {/* Level 1: Batch */}
-                                {dataEntries.map(([batch, courses]) => (
-                                    <AccordionItem key={batch} value={batch}>
-                                        <AccordionTrigger className="text-xl font-semibold">
-                                            Batch: {batch}
-                                        </AccordionTrigger>
-                                        <AccordionContent className="pl-4">
-                                            <Accordion type="multiple" className="w-full">
-                                                {/* Level 2: Course */}
-                                                {Object.entries(courses).map(([courseName, scholars]) => (
-                                                    <AccordionItem key={courseName} value={courseName}>
-                                                        <AccordionTrigger className="text-lg">
-                                                            {courseName} ({scholars.length} scholars)
-                                                        </AccordionTrigger>
-                                                        <AccordionContent className="pl-4">
-                                                            {/* Level 3: Students Table */}
-                                                            <StudentsTable scholars={scholars} />
-                                                        </AccordionContent>
-                                                    </AccordionItem>
-                                                ))}
-                                            </Accordion>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                ))}
+            <div className="py-12">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>{hei.hei_name}</CardTitle>
+                            <CardDescription>
+                                Scholars grouped by Academic Year
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Accordion
+                                type="single"
+                                collapsible
+                                className="w-full"
+                                defaultValue={
+                                    academicYears[0]?.[0] // Default to first (latest) year
+                                }
+                            >
+                                {academicYears.length > 0 ? (
+                                    academicYears.map(([year, enrollments]) => {
+                                        const count = enrollments.length;
+                                        return (
+                                            <AccordionItem
+                                                value={year}
+                                                key={year}
+                                            >
+                                                <AccordionTrigger>
+                                                    <div className="flex justify-between items-center w-full pr-4">
+                                                        <span>
+                                                            A.Y. {year}
+                                                        </span>
+                                                        <Badge variant="secondary">
+                                                            {count}{" "}
+                                                            {count === 1
+                                                                ? "Scholar"
+                                                                : "Scholars"}
+                                                        </Badge>
+                                                    </div>
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                    <DataTable
+                                                        columns={columns}
+                                                        data={enrollments}
+                                                    />
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        );
+                                    })
+                                ) : (
+                                    <p className="text-center text-gray-500">
+                                        No scholars found for this HEI.
+                                    </p>
+                                )}
                             </Accordion>
-                        ) : (
-                            <p className="p-8 text-center text-muted-foreground">
-                                No scholars found for this HEI{filters.batch ? ` in batch ${filters.batch}` : ''}.
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
+                            
+                            {/* Add pagination controls for the main 'enrollments' prop */}
+                            <Pagination paginator={enrollments} className="mt-6" />
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </AuthenticatedLayout>
-    );
-}
-
-// --- Students Table Component ---
-function StudentsTable({ scholars }: { scholars: AcademicRecord[] }) {
-    return (
-        <div className="rounded-md border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Year Level</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {scholars.map((record) => (
-                        <TableRow key={record.id}>
-                            <TableCell>
-                                {[record.scholar.given_name, record.scholar.family_name].filter(Boolean).join(' ')}
-                            </TableCell>
-                            <TableCell>{record.year_level}</TableCell>
-                            <TableCell>{record.validation_status}</TableCell>
-                            <TableCell className="text-right">
-                                {/* You can link to your scholar profile page here! */}
-                                <Link href={route('superadmin.tdp.scholar.show', { scholar: record.scholar.id })}>
-                                    <Button variant="outline" size="xs">
-                                        View Profile
-                                    </Button>
-                                </Link>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
     );
 }

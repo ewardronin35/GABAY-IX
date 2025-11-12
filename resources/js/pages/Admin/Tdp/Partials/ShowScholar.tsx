@@ -1,118 +1,150 @@
-import AuthenticatedLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { type PageProps, type User } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { route } from 'ziggy-js';
+import  AuthenticatedLayout  from '@/layouts/app-layout';
+import { PageProps, Scholar } from "@/types";
+import { Head } from "@inertiajs/react";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
-// --- Define Types (adjust fields as needed for your TdpScholar model) ---
-interface Scholar {
-    id: number;
-    family_name: string;
-    given_name: string;
-    middle_name?: string;
-    extension_name?: string;
-    sex: string;
-    province: string;
-    town_city: string;
-    contact_no: string;
-    email_address: string;
-    academic_records: AcademicRecord[]; // ✅ CHANGED: from academicRecords
-}
+// --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+import { DataTable } from "@/components/ui/data-table";
+// --- ▲▲▲ END OF FIX ▲▲▲ ---
 
-interface AcademicRecord {
-    id: number;
-    academic_year: string;
-    semester: string;
-    year_level: string;
-    hei: { hei_name: string };
-    course: { course_name: string };
-    validation_status: string;
-    date_paid?: string;
-    ada_no?: string;
-    tdp_grant?: number;
-}
-
-interface ShowScholarProps extends PageProps {
+type ShowScholarProps = PageProps & {
     scholar: Scholar;
-}
+};
 
 export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
-    const fullName = [scholar.given_name, scholar.middle_name, scholar.family_name, scholar.extension_name].filter(Boolean).join(' ');
+    if (!auth.user) return null;
 
-    // You can remove this console.log now if you want
-    console.log('--- SHOW SCHOLAR PROPS ---', scholar);
+    const {
+        given_name,
+        family_name,
+        middle_name,
+        extension_name,
+        sex,
+        contact_no,
+        email_address,
+        address,
+        education,
+        enrollments,
+    } = scholar;
+
+    const fullName = [family_name, given_name, middle_name, extension_name]
+        .filter(Boolean)
+        .join(", ");
 
     return (
         <AuthenticatedLayout
-            user={auth.user as User}
-            page_title={`Scholar Profile: ${fullName}`}
+            user={auth.user}
+            header={
+                <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+                    {fullName}
+                </h2>
+            }
         >
-            <Head title="Scholar Profile" />
+            <Head title={fullName} />
 
-            <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-                <Link href={route('superadmin.tdp.index')} className="text-sm text-primary hover:underline">
-                    &larr; Back to TDP Module
-                </Link>
-                
-                <div className="grid gap-6 md:grid-cols-3">
-                    {/* Profile Card */}
-                    <Card className="md:col-span-1">
+            <div className="py-12">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <Card>
                         <CardHeader>
-                            <CardTitle>{fullName}</CardTitle>
+                            <CardTitle>Scholar Information</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-2 text-sm">
-                            <p><strong>Email:</strong> {scholar.email_address || 'N/A'}</p>
-                            <p><strong>Contact:</strong> {scholar.contact_no || 'N/A'}</p>
-                            <p><strong>Sex:</strong> {scholar.sex || 'N/A'}</p>
-                            <p><strong>Location:</strong> {scholar.town_city}, {scholar.province}</p>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <InfoItem label="Full Name" value={fullName} />
+                                <InfoItem label="Email" value={email_address} />
+                                <InfoItem label="Contact" value={contact_no} />
+                                <InfoItem label="Sex" value={sex} />
+                                <InfoItem
+                                    label="Address"
+                                    value={[
+                                        address?.brgy_street,
+                                        address?.town_city,
+                                        address?.province,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(", ")}
+                                />
+                                <InfoItem
+                                    label="HEI"
+                                    value={education?.hei?.hei_name}
+                                />
+                                <InfoItem
+                                    label="Course"
+                                    value={education?.course?.course_name}
+                                />
+                            </div>
                         </CardContent>
                     </Card>
 
-                    {/* Payment History Card */}
-                    <Card className="md:col-span-2">
+                    {/* --- Enrollment History Card --- */}
+                    <Card>
                         <CardHeader>
-                            <CardTitle>Payment & Academic History</CardTitle>
+                            <CardTitle>Enrollment History</CardTitle>
+                            <CardDescription>
+                                A record of the scholar's enrollments and
+                                academic status per semester.
+                            </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>A.Y. / Sem</TableHead>
-                                        <TableHead>HEI</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Date Paid</TableHead>
-                                        <TableHead className="text-right">Grant</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                              <TableBody>
-    {/* ▼▼▼ THIS IS THE FIX ▼▼▼ */}
-    {/* ✅ CHANGED: from scholar.academicRecords */}
-    {scholar.academic_records && scholar.academic_records.length > 0 ? (
-        // ✅ CHANGED: from scholar.academicRecords
-        scholar.academic_records.map((record) => (
-                                            <TableRow key={record.id}>
-                                                <TableCell>{record.academic_year} / {record.semester}</TableCell>
-                                                <TableCell>{record.hei?.hei_name || 'N/A'}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline">{record.validation_status}</Badge>
-                                                </TableCell>
-                                                <TableCell>{record.date_paid || 'N/A'}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {record.tdp_grant ? `₱${record.tdp_grant.toLocaleString()}` : 'N/A'}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center">
-                                                No academic records found.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
+                            <Accordion
+                                type="multiple"
+                                className="w-full"
+                            >
+                                {enrollments && enrollments.length > 0 ? (
+                                    enrollments.map((enrollment) => (
+                                        <AccordionItem
+                                            value={`enrollment-${enrollment.id}`}
+                                            key={enrollment.id}
+                                        >
+                                            <AccordionTrigger>
+                                                <div className="flex justify-between items-center w-full pr-4">
+                                                    <span className="font-semibold text-lg">
+                                                        {enrollment.program.program_name}
+                                                    </span>
+                                                    <Badge>
+                                                        {enrollment.status}
+                                                    </Badge>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                <DataTable
+                                                    columns={
+                                                        academicRecordColumns
+                                                    }
+                                                    data={
+                                                        enrollment.academicRecords
+                                                    }
+                                                />
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-gray-500">
+                                        No enrollment history found.
+                                    </p>
+                                )}
+                            </Accordion>
                         </CardContent>
                     </Card>
                 </div>
@@ -120,3 +152,54 @@ export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
         </AuthenticatedLayout>
     );
 }
+
+// Helper component for info items
+const InfoItem = ({
+    label,
+    value,
+}: {
+    label: string;
+    value: string | null | undefined;
+}) => (
+    <div>
+        <dt className="text-sm font-medium text-gray-500">{label}</dt>
+        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+            {value || "N/A"}
+        </dd>
+    </div>
+);
+
+// --- Columns for the history table ---
+import type { ColumnDef } from "@tanstack/react-table";
+import { AcademicRecord } from "@/types";
+
+export const academicRecordColumns: ColumnDef<AcademicRecord>[] = [
+    {
+        accessorKey: "academic_year",
+        header: "A.Y.",
+    },
+    {
+        accessorKey: "semester",
+        header: "Semester",
+    },
+    {
+        accessorKey: "year_level",
+        header: "Year Level",
+    },
+    {
+        accessorKey: "grant_amount",
+        header: "Grant",
+        cell: ({ row }) => {
+            const amount = parseFloat(row.getValue("grant_amount") || "0");
+            const formatted = new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "PHP",
+            }).format(amount);
+            return <div className="text-right font-medium">{formatted}</div>;
+        },
+    },
+    {
+        accessorKey: "payment_status",
+        header: "Payment Status",
+    },
+];

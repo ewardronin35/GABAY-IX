@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
-// Import all necessary models and classes
-use App\Models\TdpAcademicRecord;
-use App\Models\TdpScholar;
+// NEW: Import all the new models
+use App\Models\AcademicRecord;
+use App\Models\Scholar;
+use App\Models\ScholarEnrollment;
+use App\Models\Program;
+
+// Keep these
 use App\Models\HEI;
 use App\Models\Course;
 use Illuminate\Http\Request;
@@ -14,311 +18,421 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use App\Jobs\ProcessTdpImport; // The background job for importing
+use App\Jobs\ProcessTdpImport; // This job uses the TdpImport we already fixed
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\TdpMasterlistExport;
-use Illuminate\Http\JsonResponse; // ✅ ADD THIS
+use Illuminate\Http\JsonResponse;
 
 class TdpController extends Controller
 {
+    private $tdpProgramId;
+
+    // NEW: Add a constructor to get the Program ID
+    public function __construct()
+    {
+        $tdpProgram = Program::where('program_name', 'TDP')->first();
+        if (!$tdpProgram) {
+            // This will fail loudly if the 'programs' table isn't seeded
+            throw new \Exception("Program 'TDP' not found in the 'programs' table. Please run 'php artisan db:seed'.");
+        }
+        $this->tdpProgramId = $tdpProgram->id;
+    }
+
     /**
-     * Display the main TDP page with paginated data for the Database and Masterlist grids.
+     * Display the main TDP page with paginated data.
      */
-   public function index(Request $request): Response
+ /**
+     * Display a listing of the resource.
+     */
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
     {
-        // Query for the main Database Grid (more detailed search)
-        $dbQuery = TdpAcademicRecord::with(['scholar', 'hei', 'course']);
-        $dbQuery->when($request->input('search_db'), function ($q, $search) {
-            $q->where('award_no', 'like', "%{$search}%")
-              ->orWhereHas('scholar', function ($scholarQuery) use ($search) {
-                  $scholarQuery->where('family_name', 'like', "%{$search}%")
-                               ->orWhere('given_name', 'like', "%{$search}%");
-              });
-        });
-        $tdpDatabase = $dbQuery->latest()->paginate(50, ['*'], 'db_page')->withQueryString();
+        $programId = Program::where('program_name', 'TDP')->value('id');
 
-        // Query for the Masterlist Grid (simpler search)
-        $mlQuery = TdpAcademicRecord::with(['scholar', 'hei', 'course']);
-        $mlQuery->when($request->input('search_ml'), function ($q, $search) {
-            $q->whereHas('scholar', function ($scholarQuery) use ($search) {
-                $scholarQuery->where('family_name', 'like', "%{$search}%");
+        // --- Base Query ---
+        // This query is correct and gets all relationships
+        $baseQuery = ScholarEnrollment::with([
+            'scholar.address',
+            'scholar.education.course',
+            'hei',
+            'academicRecords'
+        ])
+        ->where('scholar_enrollments.program_id', $programId)
+        ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+        ->select('scholar_enrollments.*');
+
+        // --- ▼▼▼ FIX 1: NEW QUERY FOR "DATABASE" TAB ▼▼▼ ---
+        // This query powers the Handsontable grid
+        $databaseQuery = (clone $baseQuery); // Clone the base query
+
+        if ($request->input('search_db')) {
+            $search = $request->input('search_db');
+            // Search by scholar name OR award number
+            $databaseQuery->where(function ($q) use ($search) {
+                $q->whereHas('scholar', function ($sq) use ($search) {
+                    $sq->where('given_name', 'like', "%{$search}%")
+                       ->orWhere('family_name', 'like', "%{$search}%");
+                })->orWhere('award_number', 'like', "%{$search}%");
             });
-        });
-       $heiQuery = Hei::whereHas('tdpAcademicRecords') // Only show HEIs that have TDP scholars
-            ->withCount('tdpAcademicRecords as scholar_count')
-            ->orderBy('hei_name');
+        }
 
-        $heiQuery->when($request->input('search_hei'), function ($q, $search) {
-            $q->where('hei_name', 'like', "%{$search}%");
-        });
+        // Paginate by 50 (for performance), named page 'db_page'
+        $databaseEnrollments = $databaseQuery
+            ->orderBy('scholars.family_name')
+            ->paginate(50, ['*'], 'db_page') 
+            ->withQueryString();
 
-        $heis = $heiQuery->paginate(25, ['*'], 'hei_page')->withQueryString();
+        // --- ▼▼▼ FIX 2: CORRECTED QUERY FOR "MASTERLIST" TAB ▼▼▼ ---
+        // This query powers the read-only Masterlist
+        $masterlistQuery = (clone $baseQuery); // Clone the base query
 
-        $tdpMasterlist = $mlQuery->latest()->paginate(25, ['*'], 'ml_page')->withQueryString();
+        // FIX: Apply filters to $masterlistQuery (was $enrollmentQuery)
+        if ($request->input('search_ml')) {
+            $search = $request->input('search_ml');
+            $masterlistQuery->whereHas('scholar', function ($q) use ($search) {
+                $q->where('given_name', 'like', "%{$search}%")
+                  ->orWhere('family_name', 'like', "%{$search}%")
+                  ->orWhere('middle_name', 'like', "%{$search}%");
+            });
+        }
+        
+        // FIX: Apply filters to $masterlistQuery
+        if ($request->input('academic_year')) {
+            $masterlistQuery->whereHas('academicRecords', function ($q) use ($request) {
+                $q->where('academic_year', $request->input('academic_year'));
+            });
+        }
+        
+        // FIX: Apply filters to $masterlistQuery
+        if ($request->input('semester')) {
+            $masterlistQuery->whereHas('academicRecords', function ($q) use ($request) {
+                $q->where('semester', $request->input('semester'));
+            });
+        }
+        
+        // This prop is now ONLY for the masterlist
+        $paginatedEnrollments = $masterlistQuery
+            ->orderBy('scholars.family_name')
+            ->paginate(50, ['*'], 'ml_page')
+            ->withQueryString();
 
-        // ✅ ADD THESE QUERIES for the report filters
-        $allHeis = Hei::orderBy('hei_name')->get(['id', 'hei_name']);
-        $allBatches = TdpAcademicRecord::select('batch')
-                        ->whereNotNull('batch')
-                        ->distinct()
-                        ->orderBy('batch', 'desc')
-                        ->pluck('batch');
-        // ✅ ADD THIS NEW QUERY
-        $allAcademicYears = TdpAcademicRecord::select('academic_year')
-                        ->whereNotNull('academic_year')
-                        ->distinct()
-                        ->orderBy('academic_year', 'desc')
-                        ->pluck('academic_year');
+        // --- Query 3: For the "Database" Tab (Paginated HEIs) ---
+        // This query is correct
+        $heiQuery = ScholarEnrollment::where('program_id', $programId)
+            ->join('heis', 'scholar_enrollments.hei_id', '=', 'heis.id')
+            ->select('heis.id', 'heis.hei_name', DB::raw('count(scholar_enrollments.scholar_id) as scholar_count'))
+            ->groupBy('heis.id', 'heis.hei_name');
+        
+        if ($request->input('search_db')) {
+             $heiQuery->where('heis.hei_name', 'like', '%'.$request->input('search_db').'%');
+        }
+        
+        $paginatedHeis = $heiQuery->orderBy('heis.hei_name')
+            ->paginate(20, ['*'], 'hei_page') // Paginate HEIs
+            ->withQueryString();
 
+        // --- Query 4: For the "Report" Tab (Server-side Stats) ---
+        // This query is correct
+        $statsQuery = ScholarEnrollment::where('scholar_enrollments.program_id', $programId);
+        $statistics = [
+            'totalScholars' => (clone $statsQuery)->distinct('scholar_id')->count(),
+            'uniqueHeis' => (clone $statsQuery)->distinct('hei_id')->count(),
+            'uniqueProvinces' => (clone $statsQuery)
+                ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+                ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+                ->distinct('addresses.province')
+                ->count('addresses.province'),
+            'uniqueCourses' => (clone $statsQuery)
+                ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+                ->join('education', 'scholars.id', '=', 'education.scholar_id')
+                ->distinct('education.course_id')
+                ->count('education.course_id'),
+        ];
+        
+        // --- ▼▼▼ FIX 3: CORRECTED RETURN STATEMENT ▼▼▼ ---
         return Inertia::render('Admin/Tdp/Index', [
-            'tdpRecords' => $tdpDatabase, 
-            'tdpMasterlist' => $tdpMasterlist,
-            'heis' => $heis,
-            'filters' => $request->only(['search_db', 'search_ml', 'search_hei']),
-            'allHeis' => $allHeis,           // ✅ ADD THIS PROP
-            'allBatches' => $allBatches,     // ✅ ADD THIS PROP
-            'allAcademicYears' => $allAcademicYears, // ✅ ADD THIS PROP
+            // For Masterlist Tab (uses 'enrollments')
+            'enrollments' => $paginatedEnrollments, 
+            
+            // NEW: For Database Tab (Handsontable)
+            'databaseEnrollments' => $databaseEnrollments, 
+            
+            // For HEI Tab
+            'paginatedHeis' => $paginatedHeis,
+            
+            // For Report Tab
+            'statistics' => $statistics,
+            
+            // For Filters
+            'courses' => Course::all(), 
+            'academicYears' => AcademicRecord::distinct()->orderBy('academic_year', 'desc')->pluck('academic_year'),
+            'semesters' => AcademicRecord::distinct()->pluck('semester'),
+            
+            // Send all filters back to keep UI in sync
+'filters' => $request->only(['search_db', 'search_ml', 'academic_year', 'semester', 'tab']),
         ]);
     }
-    public function showHei(Request $request, HEI $hei): Response
-    {
-        $recordsQuery = TdpAcademicRecord::where('tdp_academic_records.hei_id', $hei->id)
-                            ->with(['scholar', 'course'])
-                            ->join('courses', 'tdp_academic_records.course_id', '=', 'courses.id')
-                            ->select('tdp_academic_records.*') 
-                            ->orderBy('batch', 'desc')
-                            ->orderBy('courses.course_name', 'asc');
 
-        $recordsQuery->when($request->input('batch'), function ($q, $batch) {
-            $q->where('batch', $batch);
+
+public function bulkUpdate(Request $request)
+    {
+        $programId = $this->tdpProgramId; 
+
+        // 1. CLEAN THE DATA *BEFORE* VALIDATING
+        $cleanedData = [];
+        foreach ($request->enrollments as $row) {
+            
+            // Step 1: Clean known "dirty" fields *first*
+            if (isset($row['sex'])) {
+                if (strtolower($row['sex']) === 'male') $row['sex'] = 'M';
+                if (strtolower($row['sex']) === 'female') $row['sex'] = 'F';
+            }
+
+            if (isset($row['tdp_grant'])) {
+                // This is your "address" or string field. We'll just trim it.
+                // If it was a number, we'd add: str_replace(['₱', ',', ' '], '', $row['tdp_grant']);
+            }
+            
+            // Step 2: Now, convert *all* empty strings to null.
+            foreach ($row as $key => $value) {
+                if (is_string($value)) {
+                    $value = trim($value);
+                    if ($value === '') {
+                        $value = null; // Convert "" to null
+                    }
+                    $row[$key] = $value;
+                }
+            }
+            
+            // Step 3: Handle null/empty IDs
+            if (empty($row['id'])) {
+                $row['id'] = null;
+            }
+
+            $cleanedData[] = $row;
+        }
+
+        // 2. VALIDATE THE *CLEANED* DATA
+        $validator = \Illuminate\Support\Facades\Validator::make(['enrollments' => $cleanedData], [
+            'enrollments' => 'required|array',
+            'enrollments.*.id' => 'nullable|integer|exists:scholars,id', 
+            
+            // Scholar fields
+            'enrollments.*.family_name' => 'nullable|string|max:255',
+            'enrollments.*.given_name' => 'nullable|string|max:255',
+            'enrollments.*.middle_name' => 'nullable|string|max:255',
+            'enrollments.*.extension_name' => 'nullable|string|max:20',
+            'enrollments.*.sex' => 'nullable|string|in:M,F',
+            'enrollments.*.contact_no' => 'nullable|string|max:20',
+            'enrollments.*.email_address' => 'nullable|email|max:255',
+            
+            // Enrollment fields
+            'enrollments.*.award_no' => 'nullable|string|max:255',
+
+            // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+            // Academic Record fields (All keys are now present)
+            'enrollments.*.seq' => 'nullable|string|max:255',
+            'enrollments.*.app_no' => 'nullable|string|max:255',
+            'enrollments.*.year_level' => 'nullable|string|max:255', // Match DB varchar
+            'enrollments.*.batch' => 'nullable|string|max:255',
+            'enrollments.*.validation_status' => 'nullable|string|max:255',
+            'enrollments.*.date_paid' => 'nullable|date',
+            'enrollments.*.tdp_grant' => 'nullable|string|max:255', // It is a string (varchar)
+            'enrollments.*.endorsed_by' => 'nullable|string|max:255',
+            // --- ▲▲▲ END OF FIX ▲▲▲ ---
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator->errors());
+        }
+
+        // 3. PROCESS:
+        DB::transaction(function () use ($cleanedData, $programId) {
+            
+            // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+            // Create a "defaults" array. This ensures all keys we
+            // need for the update will exist, even if the frontend
+            // failed to send them (e.g., from an empty cell).
+            $academicKeysDefaults = [
+                'seq' => null,
+                'app_no' => null,
+                'year_level' => null,
+                'batch' => null,
+                'validation_status' => null,
+                'date_paid' => null,
+                'tdp_grant' => null,
+                'endorsed_by' => null,
+                'family_name' => null,
+                'given_name' => null,
+                'middle_name' => null,
+                'extension_name' => null,
+                'sex' => null,
+                'contact_no' => null,
+                'email_address' => null,
+                'award_number' => null,
+            ];
+            // --- ▲▲▲ END OF FIX ▲▲▲ ---
+
+            foreach ($cleanedData as $row) {
+                
+                // This is correct. This grid only *updates*.
+                // The "Import" tab *creates*.
+                if (is_null($row['id'])) {
+                    continue; 
+                }
+                
+                // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+                // Merge the defaults with the row. If $row is missing 'seq',
+                // this will add 'seq' => null. This makes it crash-proof.
+                $safeRow = array_merge($academicKeysDefaults, $row);
+                // --- ▲▲▲ END OF FIX ▲▲▲ ---
+
+                $scholar = Scholar::find($safeRow['id']);
+                if ($scholar) {
+                    $scholar->update([
+                        'family_name' => $safeRow['family_name'],
+                        'given_name' => $safeRow['given_name'],
+                        'middle_name' => $safeRow['middle_name'],
+                        'extension_name' => $safeRow['extension_name'],
+                        'sex' => $safeRow['sex'],
+                        'contact_no' => $safeRow['contact_no'],
+                        'email_address' => $safeRow['email_address'],
+                    ]);
+                }
+
+                $enrollment = ScholarEnrollment::where('scholar_id', $safeRow['id'])
+                                ->where('program_id', $programId)
+                                ->first();
+                
+                if ($enrollment) {
+                    $enrollment->update([
+                        'award_number' => $safeRow['award_no'],
+                    ]);
+
+                    $academicRecord = $enrollment->academicRecords()->first();
+                    
+                    if ($academicRecord) {
+                        // Now we use $safeRow, which is guaranteed to have all keys.
+                        $academicRecord->update([
+                            'seq' => $safeRow['seq'],
+                            'app_no' => $safeRow['app_no'],
+                            'year_level' => $safeRow['year_level'],
+                            'batch_no' => $safeRow['batch'], 
+                            'payment_status' => $safeRow['validation_status'],
+                            'disbursement_date' => $safeRow['date_paid'],
+                            'grant_amount' => $safeRow['tdp_grant'], // Maps tdp_grant to grant_amount
+                            'endorsed_by' => $safeRow['endorsed_by'],
+                        ]);
+                    }
+                }
+            }
         });
 
-        $records = $recordsQuery->get();
-
-        $groupedData = $records->groupBy(['batch', function ($item) {
-            return $item->course->course_name ?? 'Unspecified Course';
-        }]);
-        
-        $batches = TdpAcademicRecord::where('hei_id', $hei->id)
-                        ->select('batch')
-                        ->distinct()
-                        ->orderBy('batch', 'desc')
-                        ->pluck('batch');
-
-        return Inertia::render('Admin/Tdp/Partials/ShowHei', [
-            'hei' => $hei,
-            'groupedData' => $groupedData,
-            'batches' => $batches,
-            'filters' => $request->only(['batch']),
-        ]);
+        return redirect()->back()->with('success', 'Masterlist updated successfully!');
     }
-
-    // ▼▼▼ PASTE THIS ENTIRE 'showScholar' METHOD ▼▼▼
-  public function showScholar(TdpScholar $scholar): Response
+    public function showScholar(Scholar $scholar)
     {
-        // ▼▼▼ DELETE THIS LINE ▼▼▼
-        // dd('TESTING: The showScholar method in TdpController IS RUNNING.');
+        // Load all relationships needed for the ShowScholar page
+        $scholar->load([
+            'address', 
+            'education.hei', 
+            'education.course', 
+            'enrollments.program', 
+            'enrollments.academicRecords'
+        ]);
         
-        // This code will now run:
-        $scholar->load(['academicRecords' => function ($query) {
-            $query->with(['hei', 'course'])
-                  ->orderBy('academic_year', 'desc')
-                  ->orderBy('semester', 'desc');
-        }]);
         return Inertia::render('Admin/Tdp/Partials/ShowScholar', [
             'scholar' => $scholar
         ]);
     }
-   public function fetchStatisticsData(Request $request)
+
+    /**
+     * --- ▼▼▼ FIX: ADDED MISSING METHOD ▼▼▼ ---
+     * Display the specified HEI and its scholars.
+     */
+    public function showHei(HEI $hei)
     {
-        $academicQuery = TdpAcademicRecord::query();
+        $programId = Program::where('program_name', 'TDP')->value('id');
 
-        // ✅ Apply filters to the queries
-        $academicQuery->when($request->input('hei_id'), function ($q, $heiId) {
-            $q->where('hei_id', $heiId);
-        });
+        // Load HEI info and its enrollments FOR THIS PROGRAM, paginated
+        $enrollments = $hei->enrollments()
+            ->where('program_id', $programId)
+            ->with(['scholar', 'academicRecords'])
+            ->paginate(50);
 
-        $academicQuery->when($request->input('batch'), function ($q, $batch) {
-            $q->where('batch', $batch);
-        });
-        
-        // ✅ ADDED academic_year filter
-        $academicQuery->when($request->input('academic_year'), function ($q, $ay) {
-            $q->where('academic_year', $ay);
-        });
-
-        // 1. Get Scholars by Province
-        $scholarsByProvince = DB::table('tdp_scholars')
-            ->join('tdp_academic_records', 'tdp_scholars.id', '=', 'tdp_academic_records.tdp_scholar_id')
-            ->select('tdp_scholars.province', DB::raw('count(distinct tdp_scholars.id) as total'))
-            ->whereNotNull('tdp_scholars.province')
-            ->when($request->input('hei_id'), function ($q, $heiId) {
-                $q->where('tdp_academic_records.hei_id', $heiId);
-            })
-            ->when($request->input('batch'), function ($q, $batch) {
-                $q->where('tdp_academic_records.batch', $batch);
-            })
-            // ✅ ADDED academic_year filter
-            ->when($request->input('academic_year'), function ($q, $ay) {
-                $q->where('tdp_academic_records.academic_year', $ay);
-            })
-            ->groupBy('tdp_scholars.province')
-            ->orderBy('total', 'desc')
-            ->get();
-
-        // 2. Get Total Scholars (based on filters)
-        $totalScholars = $academicQuery->clone()->distinct('tdp_scholar_id')->count();
-
-        // 3. Get Scholars by Status
-        $scholarsByStatus = $academicQuery->clone()
-            ->select('validation_status', DB::raw('count(distinct tdp_scholar_id) as total'))
-            ->whereNotNull('validation_status')
-            ->groupBy('validation_status')
-            ->orderBy('total', 'desc')
-            ->get()
-            ->pluck('total', 'validation_status');
-
-        // 4. Get Scholars by HEI
-        $scholarsByHei = $academicQuery->clone()
-            ->join('heis', 'tdp_academic_records.hei_id', '=', 'heis.id')
-            ->select('heis.hei_name', DB::raw('count(distinct tdp_academic_records.tdp_scholar_id) as total'))
-            ->groupBy('heis.hei_name')
-            ->orderBy('total', 'desc')
-            ->take(10)
-            ->get()
-            ->pluck('total', 'hei_name');
-
-        return response()->json([
-            'scholarsByProvince' => $scholarsByProvince,
-            'total_scholars' => $totalScholars,
-            'by_status' => $scholarsByStatus,
-            'by_hei' => $scholarsByHei,
+        return Inertia::render('Admin/Tdp/Partials/ShowHei', [
+            'hei' => $hei,
+            'enrollments' => $enrollments
         ]);
     }
     /**
-     * Generate a PDF of the statistics report with an embedded chart.
+     * Generate a PDF masterlist.
      */
- public function generateStatisticsPdf(Request $request)
-{
-    // ✅ Fetch stats using the filters from the request
-    $stats = $this->fetchStatisticsData($request)->getData(true);
-
-    // ✅ Send ONLY the stats data to the view. No more chart images.
-    $pdf = Pdf::loadView('exports.tdp-statistics-report', [
-        'stats' => $stats,
-    ]);
-
-    return $pdf->setPaper('a4', 'portrait')->download('TDP-Statistics-Report.pdf');
-}
-
-    /**
-     * Generate a designed Excel file of the filtered masterlist.
-     */
-    public function generateMasterlistExcel(Request $request)
+    public function generateMasterlistPdf(Request $request)
     {
-        return Excel::download(new TdpMasterlistExport($request), 'TDP-Masterlist.xlsx');
-    }
+        // --- REFACTORED QUERY (Masterlist PDF) ---
+        $mlQuery = AcademicRecord::with(['enrollment.scholar', 'hei', 'course'])
+            // NEW: Filter for TDP Program
+            ->whereHas('enrollment', function ($q) {
+                $q->where('program_id', $this->tdpProgramId);
+            });
 
-    /**
-     * Generate a PDF of the entire filtered masterlist.
-     */
-  public function generateMasterlistPdf(Request $request)
-    {
-        $query = TdpAcademicRecord::with(['scholar', 'hei', 'course']);
-
-        $query->when($request->input('search_ml'), function ($q, $search) {
-            $q->whereHas('scholar', function ($scholarQuery) use ($search) {
-                $scholarQuery->where('family_name', 'like', "%{$search}%");
+        // REFACTORED SEARCH
+        $mlQuery->when($request->input('search_ml'), function ($q, $search) {
+            return $q->whereHas('enrollment', function ($enrollQuery) use ($search) {
+                $enrollQuery->where('award_number', 'like', "%{$search}%");
+            })->orWhereHas('enrollment.scholar', function ($scholarQuery) use ($search) {
+                $scholarQuery->where('family_name', 'like', "%{$search}%")
+                             ->orWhere('given_name', 'like', "%{$search}%");
             });
         });
 
-        // ✅ ADDED Filters
-        $query->when($request->input('hei_id'), function ($q, $heiId) {
-            $q->where('hei_id', $heiId);
-        });
-
-        $query->when($request->input('batch'), function ($q, $batch) {
-            $q->where('batch', $batch);
-        });
-        
-        // ✅ ADDED academic_year filter
-        $query->when($request->input('academic_year'), function ($q, $ay) {
-            $q->where('academic_year', $ay);
-        });
-
-        $records = $query->latest()->limit(1000)->get();
-
-        $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', ['records' => $records]);
-        return $pdf->setPaper('legal', 'landscape')->download('TDP-Masterlist.pdf');
+        $tdpMasterlist = $mlQuery->get();
+        // TODO: Refactor 'exports.tdp-masterlist-pdf.blade.php' to use the new data structure
+        // (e.g., $record->enrollment->scholar->family_name)
+        $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', ['records' => $tdpMasterlist]);
+        return $pdf->download('tdp-masterlist.pdf');
     }
-   public function bulkUpdate(Request $request): RedirectResponse
-    {
-        $validated = $request->validate(['data' => 'required|array']);
 
+    /**
+     * Generate an Excel masterlist.
+     */
+    public function generateMasterlistExcel(Request $request)
+    {
+        // This function will fail until we refactor the TdpMasterlistExport class
+        // TODO: Refactor App\Exports\TdpMasterlistExport.php
+        return Excel::download(new TdpMasterlistExport($request->input('search_ml')), 'tdp-masterlist.xlsx');
+    }
+
+    /**
+     * Update data from the Handsontable grid.
+     * WARNING: This function is broken and must be rewritten.
+     */
+    public function updateTdpData(Request $request): RedirectResponse
+    {
+        // TODO: This function MUST be completely rewritten to work with the new normalized structure.
+        // The old logic is commented out to prevent errors.
+        
+        /*
+        $validated = $request->validate(['data' => 'required|array']);
         DB::transaction(function () use ($validated) {
             foreach ($validated['data'] as $row) {
-                if (empty($row['family_name']) && empty($row['given_name'])) {
-                    continue;
-                }
-
-                $hei = HEI::firstOrCreate(
-                    ['hei_name' => $row['hei_name'] ?? 'N/A'],
-                    [
-                        'hei_type' => $row['hei_type'] ?? null,
-                        'city' => $row['hei_city'] ?? null,
-                        'province' => $row['hei_province'] ?? null,
-                        'district' => $row['hei_district'] ?? null,
-                    ]
-                );
-                $course = Course::firstOrCreate(['course_name' => $row['course_name'] ?? 'N/A']);
-
-                $scholar = TdpScholar::updateOrCreate(
-                    [
-                        'family_name' => $row['family_name'],
-                        'given_name' => $row['given_name'],
-                        'middle_name' => $row['middle_name'] ?? null,
-                    ],
-                    [
-                        'extension_name' => $row['extension_name'] ?? null,
-                        'sex' => isset($row['sex']) ? strtoupper(trim($row['sex']))[0] : null,
-                        'street' => $row['street'] ?? null,
-                        'town_city' => $row['town_city'] ?? null,
-                        'district' => $row['district'] ?? null,
-                        'province' => $row['province'] ?? null,
-                        'contact_no' => $row['contact_no'] ?? null,
-                        'email_address' => $row['email_address'] ?? null,
-                    ]
-                );
-
-                TdpAcademicRecord::updateOrCreate(
-                    ['id' => $row['id'] ?? null],
-                    [
-                        'tdp_scholar_id' => $scholar->id,
-                        'hei_id' => $hei->id,
-                        'course_id' => $course->id,
-                        'seq' => $row['seq'] ?? null,
-                        'app_no' => $row['app_no'] ?? null,
-                        'award_no' => $row['award_no'] ?? null,
-                        'year_level' => $row['year_level'] ?? null,
-                        'batch' => $row['batch'] ?? null,
-                        'validation_status' => $row['validation_status'] ?? null,
-                        'semester' => $row['semester'] ?? null,
-                        'academic_year' => $row['academic_year'] ?? null,
-                        'date_paid' => $row['date_paid'] ?? null,
-                        'ada_no' => $row['ada_no'] ?? null,
-                        'tdp_grant' => $row['tdp_grant'] ?? null,
-                        'endorsed_by' => $row['endorsed_by'] ?? null,
-                    ]
-                );
+                // ... OLD BROKEN LOGIC ...
             }
         });
+        */
 
-        return redirect()->back()->with('success', 'TDP data saved successfully!');
+        // TEMPORARY RESPONSE:
+        Log::error('updateTdpData is not yet refactored.');
+        return redirect()->back()->with('error', 'This save function is not yet implemented for the new database structure.');
     }
 
     /**
      * Temporarily store a file uploaded via FilePond.
+     * This function is correct.
      */
     public function upload(Request $request): string
     {
@@ -329,21 +443,32 @@ class TdpController extends Controller
     /**
      * Handle the import request by dispatching a background job.
      */
- public function import(Request $request): JsonResponse // ✅ Returns JsonResponse
+   public function import(Request $request): JsonResponse
     {
+        // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+        
+        // 1. Validate the *file upload* itself, not a string path.
         $request->validate([
-            'file' => 'required|mimes:xlsx,xls,xlsm'
+            'file' => 'required|file|mimes:xlsx,xls,csv'
         ]);
 
         try {
-            // 1. Store the file in 'storage/app/imports'
+            // 2. Get the file from the request and store it.
+            // This is the logic that was in your `upload` method.
             $filePath = $request->file('file')->store('imports');
+
+             // 3. Make sure the file was stored (it should be, but good to check)
+            if (!Storage::exists($filePath)) {
+                 Log::error('TDP File Import Error: File not found after storing at: ' . $filePath);
+                 return response()->json(['message' => 'File not found on server after upload.'], 404);
+            }
             
-            // 2. Dispatch the job with the file path
-            ProcessTdpImport::dispatch($filePath);
+            // 4. Dispatch the job with the file path
+            ProcessTdpImport::dispatch($filePath); // This uses your refactored TdpImport.php
             
-            // 3. Return an immediate success message
+            // 5. Return an immediate success message
             return response()->json(['message' => 'File received! Processing will begin in the background.']);
+        // --- ▲▲▲ END OF FIX ▲▲▲ ---
 
         } catch (\Exception $e) {
             Log::error('TDP File Upload Error: ' . $e->getMessage());

@@ -9,11 +9,13 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-// In the new migration file
-public function up(): void
+  public function up(): void
 {
-    Schema::table('addresses', function (Blueprint $table) {
-        $table->string('zip_code')->nullable()->after('province');
+    Schema::create('cities', function (Blueprint $table) {
+        $table->id();
+        $table->foreignId('province_id')->constrained('provinces');
+        $table->string('name'); // "Zamboanga City"
+        $table->timestamps();
     });
 }
 
@@ -22,8 +24,6 @@ public function up(): void
      */
     public function down(): void
     {
-        Schema::table('addresses', function (Blueprint $table) {
-            //
-        });
+        Schema::dropIfExists('cities');
     }
 };

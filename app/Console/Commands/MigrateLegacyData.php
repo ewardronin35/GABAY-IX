@@ -8,6 +8,7 @@ use App\Models\Scholar;
 use App\Models\Program;
 use App\Models\ScholarEnrollment;
 use App\Models\AcademicRecord;
+use Exception; // Added for throwing exception
 
 class MigrateLegacyData extends Command
 {
@@ -38,11 +39,20 @@ class MigrateLegacyData extends Command
 
         // --- PREPARATION ---
         $this->programMap = Program::pluck('id', 'program_name');
-        $this->checkProgramMap('TES');
-        $this->checkProgramMap('TDP');
-        $this->checkProgramMap('Stufap');
-        $this->checkProgramMap('E-Statskolar');
-        $this->checkProgramMap('CSMP');
+        
+        // Check for all required programs
+        // Note: Your old 'estatskolars' table will map to 'E-Statskolar' program
+        try {
+            $this->checkProgramMap('TES');
+            $this->checkProgramMap('TDP');
+            $this->checkProgramMap('Stufap');
+            $this->checkProgramMap('E-Statskolar');
+            $this->checkProgramMap('CSMP');
+            // $this->checkProgramMap('UniFast'); // Uncomment if you have this
+        } catch (Exception $e) {
+            $this->error($e->getMessage());
+            return 1; // Stop execution
+        }
 
         // --- MIGRATION ---
         DB::transaction(function () {
@@ -51,7 +61,7 @@ class MigrateLegacyData extends Command
             $this->migrateStufapScholars();
             $this->migrateEstatskolars();
             $this->migrateCsmpScholars();
-            $this->migrateLegacyAcademicYears();
+            // $this->migrateLegacyAcademicYears(); // Uncomment to run this
         });
 
         $this->info('=============================================');
@@ -62,7 +72,7 @@ class MigrateLegacyData extends Command
     
     /**
      * --- HELPER ---
-     * Converts "M", "F", "Male", "Female", etc., to 0, 1, or null.
+     * Converts "M", "F", "Male", "Female", etc., to 'M', 'F', or null.
      */
     private function mapSex($value)
     {
@@ -70,15 +80,14 @@ class MigrateLegacyData extends Command
         // Get the first letter and make it uppercase
         $val = strtoupper(trim($value))[0];
         
-        if ($val === 'M') return 0; // 0 for Male
-        if ($val === 'F') return 1; // 1 for Female
+        if ($val === 'M') return 'M'; // FIX: Return 'M' string
+        if ($val === 'F') return 'F'; // FIX: Return 'F' string
         
         return null; // Return null for "S" or any other value
     }
 
     /**
      * Helper to find or create the central Scholar (Person) record.
-     * --- THIS FUNCTION IS NOW FIXED for PHP 5.x ---
      */
     private function findOrCreateScholar($old, $uniqueKey = 'lrn')
     {
@@ -177,13 +186,13 @@ class MigrateLegacyData extends Command
         if (!isset($this->programMap['TES'])) { $this->error('TES program not found. Skipping.'); return; }
         $programId = $this->programMap['TES'];
 
-        foreach (DB::table('tes_scholars')->cursor() as $old) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('tes_scholars')->cursor() as $old) {
             $scholar = $this->findOrCreateScholar($old, 'email');
             $enrollment = $this->createEnrollment($scholar, $programId, $old);
             
             if (!$enrollment) continue;
 
-            foreach (DB::table('tes_academic_records')->where('tes_scholar_id', $old->id)->cursor() as $record) {
+            foreach (DB::connection('gabay_ix_old_backup')->table('tes_academic_records')->where('tes_scholar_id', $old->id)->cursor() as $record) {
                 AcademicRecord::create([
                     'scholar_enrollment_id' => $enrollment->id,
                     'hei_id' => $record->hei_id,
@@ -212,13 +221,13 @@ class MigrateLegacyData extends Command
         if (!isset($this->programMap['TDP'])) { $this->error('TDP program not found. Skipping.'); return; }
         $programId = $this->programMap['TDP'];
 
-        foreach (DB::table('tdp_scholars')->cursor() as $old) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('tdp_scholars')->cursor() as $old) {
             $scholar = $this->findOrCreateScholar($old, 'email');
             $enrollment = $this->createEnrollment($scholar, $programId, $old);
 
             if (!$enrollment) continue; 
 
-            foreach (DB::table('tdp_academic_records')->where('tdp_scholar_id', $old->id)->cursor() as $record) {
+            foreach (DB::connection('gabay_ix_old_backup')->table('tdp_academic_records')->where('tdp_scholar_id', $old->id)->cursor() as $record) {
                 AcademicRecord::create([
                     'scholar_enrollment_id' => $enrollment->id,
                     'hei_id' => isset($record->hei_id) ? $record->hei_id : null,
@@ -235,7 +244,7 @@ class MigrateLegacyData extends Command
                 ]);
             }
         }
-        $this.info('TDP Scholars migration complete.');
+        $this->info('TDP Scholars migration complete.'); // FIX: $this.info to $this->info
     }
 
     private function migrateStufapScholars()
@@ -244,13 +253,13 @@ class MigrateLegacyData extends Command
         if (!isset($this->programMap['Stufap'])) { $this->error('Stufap program not found. Skipping.'); return; }
         $programId = $this->programMap['Stufap'];
 
-        foreach (DB::table('stufap_scholars')->cursor() as $old) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('stufap_scholars')->cursor() as $old) {
             $scholar = $this->findOrCreateScholar($old, 'email');
             $enrollment = $this->createEnrollment($scholar, $programId, $old);
             
             if (!$enrollment) continue; 
 
-            foreach (DB::table('stufap_academic_records')->where('stufap_scholar_id', $old->id)->cursor() as $record) {
+            foreach (DB::connection('gabay_ix_old_backup')->table('stufap_academic_records')->where('stufap_scholar_id', $old->id)->cursor() as $record) {
                 AcademicRecord::create([
                     'scholar_enrollment_id' => $enrollment->id,
                     'hei_id' => isset($record->hei_id) ? $record->hei_id : null,
@@ -267,7 +276,7 @@ class MigrateLegacyData extends Command
                 ]);
             }
         }
-        $this.info('Stufap Scholars migration complete.');
+        $this->info('Stufap Scholars migration complete.'); // FIX: $this.info to $this->info
     }
 
     private function migrateEstatskolars()
@@ -276,47 +285,48 @@ class MigrateLegacyData extends Command
         if (!isset($this->programMap['E-Statskolar'])) { $this->error('E-Statskolar program not found. Skipping.'); return; }
         $programId = $this->programMap['E-Statskolar'];
 
-        foreach (DB::table('estatskolars')->cursor() as $old) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('estatskolars')->cursor() as $old) {
             $scholar = $this->findOrCreateScholar($old, 'lrn');
             $enrollment = $this->createEnrollment($scholar, $programId, $old);
 
             if (!$enrollment) continue; 
 
-            foreach (DB::table('estatskolar_monitorings')->where('estatskolar_id', $old->id)->cursor() as $record) {
+            foreach (DB::connection('gabay_ix_old_backup')->table('estatskolar_monitorings')->where('estatskolar_id', $old->id)->cursor() as $record) {
                 $ay = isset($record->academic_year) ? $record->academic_year : 'UNKNOWN';
 
                 // Create FIRST SEMESTER record
                 AcademicRecord::create([
                     'scholar_enrollment_id' => $enrollment->id,
-                    'hei_id' => $record->hei_id,
-                    'course_id' => $record->course_id,
+                    'hei_id' => isset($old->hei_id) ? $old->hei_id : null,
+                    'course_id' => isset($old->course_id) ? $old->course_id : null,
                     'academic_year' => $ay,
                     'semester' => '1', // Hard-coded
-                    'year_level' => $record->year_level,
-                    'total_units_enrolled' => $record->first_sem_units,
-                    'grant_amount' => $record->payment_first_sem,
-                    'gwa' => $record->first_sem_gwa,
-                    'disbursement_date' => $record->first_sem_disbursement_date,
+                   'year_level' => isset($record->year_level) ? $record->year_level : null,
+                    'total_units_enrolled' => isset($record->first_sem_units) ? $record->first_sem_units : null,
+                    'grant_amount' => isset($record->payment_first_sem) ? $record->payment_first_sem : null,
+                    'gwa' => isset($record->first_sem_gwa) ? $record->first_sem_gwa : null,
+                    'disbursement_date' => isset($record->first_sem_disbursement_date) ? $record->first_sem_disbursement_date : null,
                 ]);
 
                 // Create SECOND SEMESTER record (if data exists)
                 if (!empty($record->second_sem_units) || !empty($record->payment_second_sem) || !empty($record->second_sem_gwa)) {
                     AcademicRecord::create([
                         'scholar_enrollment_id' => $enrollment->id,
-                        'hei_id' => $record->hei_id,
-                        'course_id' => $record->course_id,
+                      'hei_id' => isset($old->hei_id) ? $old->hei_id : null,
+                        'course_id' => isset($old->course_id) ? $old->course_id : null,
                         'academic_year' => $ay,
                         'semester' => '2', // Hard-coded
-                        'year_level' => $record->year_level,
-                        'total_units_enrolled' => $record->second_sem_units,
-                        'grant_amount' => $record->payment_second_sem,
-                        'gwa' => $record->second_sem_gwa,
-                        'disbursement_date' => $record->second_sem_disbursement_date,
+                        'year_level' => isset($record->year_level) ? $record->year_level : null,
+                        'total_units_enrolled' => isset($record->second_sem_units) ? $record->second_sem_units : null,
+                        'grant_amount' => isset($record->payment_second_sem) ? $record->payment_second_sem : null,
+                        'gwa' => isset($record->second_sem_gwa) ? $record->second_sem_gwa : null,
+                        'disbursement_date' => isset($record->second_sem_disbursement_date) ? $record->second_sem_disbursement_date : null,
                     ]);
+                    
                 }
             }
         }
-        $this.info('E-Statskolars migration complete.');
+        $this->info('E-Statskolars migration complete.'); // FIX: $this.info to $this->info
     }
 
     private function migrateCsmpScholars()
@@ -325,18 +335,18 @@ class MigrateLegacyData extends Command
         if (!isset($this->programMap['CSMP'])) { $this->error('CSMP program not found. Skipping.'); return; }
         $programId = $this->programMap['CSMP'];
 
-        foreach (DB::table('csmp_scholars')->cursor() as $old) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('csmp_scholars')->cursor() as $old) {
             $scholar = $this->findOrCreateScholar($old, 'email');
             $this->createEnrollment($scholar, $programId, $old);
         }
-        $this.info('CSMP Scholars migration complete.');
+        $this->info('CSMP Scholars migration complete.'); // FIX: $this.info to $this->info
     }
     
     private function migrateLegacyAcademicYears()
     {
         $this->info('Migrating legacy academic_years table...');
         
-        foreach (DB::table('academic_years')->cursor() as $record) {
+        foreach (DB::connection('gabay_ix_old_backup')->table('academic_years')->cursor() as $record) {
             $scholar = Scholar::find($record->scholar_id);
             if (!$scholar) {
                 $this->warn("Skipping academic_year record {$record->id}, scholar not found.");
@@ -381,7 +391,7 @@ class MigrateLegacyData extends Command
                 );
             }
         }
-        $this.info('Legacy academic_years migration complete.');
+        $this->info('Legacy academic_years migration complete.'); // FIX: $this.info to $this->info
     }
 
     /**
@@ -390,7 +400,6 @@ class MigrateLegacyData extends Command
     private function checkProgramMap($programName)
     {
         if (!isset($this->programMap[$programName])) {
-            // --- FIXED TYPO: $this.error to $this->error ---
             $this->error("Migration FAILED: Program '{$programName}' not found in your 'programs' table.");
             $this->error('Please add it and try again.');
             throw new \Exception("Missing program: {$programName}");

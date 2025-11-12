@@ -16,6 +16,7 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     ziggy: Config & { location: string; query: { tab?: string } };
     [key: string]: unknown;
 };
+
 export interface FinancialRequestLog {
     id: number;
     action: string;
@@ -37,7 +38,27 @@ declare global {
 
 export interface Paginator<T> {
     data: T[];
-    links: PaginationLink[];
+    data: T[];
+    links: {
+        first: string | null;
+        last: string | null;
+        prev: string | null;
+        next: string | null;
+    };
+    meta: {
+        current_page: number;
+        from: number | null;
+        last_page: number;
+        links: {
+            url: string | null;
+            label: string;
+            active: boolean;
+        }[];
+        path: string;
+        per_page: number;
+        to: number | null;
+        total: number;
+    };
     current_page: number;
     first_page_url: string;
     from: number;
@@ -53,7 +74,7 @@ export interface Paginator<T> {
 export interface Auth {
     user: User | null; // User can be null if not logged in
 }
-
+export type PaginatedResponse<T> = Paginator<T>;
 export interface BreadcrumbItem {
     title: string;
     href: string;
@@ -121,3 +142,83 @@ export interface User {
     permissions: string[]; // This is now the one and only definition
     [key: string]: unknown;
 }
+export type Scholar = {
+    id: number;
+    lrn: string | null;
+    seq: number | null;
+    family_name: string;
+    given_name: string;
+    middle_name: string | null;
+    extension_name: string | null;
+    sex: 'M' | 'F' | null;
+    contact_no: string | null;
+    email_address: string | null;
+    date_of_birth: string | null; // Dates come as strings
+    
+    // --- Relationships ---
+    // These are loaded by your controller query
+    address?: Address;
+    education?: Education;
+};
+export type AcademicRecord = {
+    id: number;
+    scholar_enrollment_id: number;
+    hei_id: number | null;
+    course_id: number | null;
+    academic_year: string;
+    semester: string;
+    year_level: string | null;
+    grant_amount: string | null;
+    payment_status: string | null;
+    app_no: string | null;
+    batch_no: string | null;
+    gwa: string | null;
+    disbursement_date: string | null;
+};
+
+export type Address = {
+    id: number;
+    scholar_id: number;
+    brgy_street: string | null;
+    town_city: string | null;
+    province: string | null;
+    zip_code: string | null;
+    congressional_district: string | null;
+    region: string | null;
+};
+
+export type Education = {
+    id: number;
+    scholar_id: number;
+    hei_id: number | null;
+    course_id: number | null;
+    
+    // --- Relationships ---
+    hei?: HEI; // Assuming you have an HEI type
+    course?: Course; // Assuming you have a Course type
+};
+export type ScholarEnrollment = {
+    id: number;
+    scholar_id: number;
+    program_id: number;
+    hei_id: number | null;
+    award_number: string | null;
+    status: string;
+    academic_year_applied: string | null;
+
+    // --- Relationships (loaded by your controller) ---
+    scholar: Scholar;
+    hei: HEI;
+    academicRecords: AcademicRecord[];
+};
+export type HEI = {
+    id: number;
+    hei_name: string;
+    // ... add other HEI fields if needed
+};
+
+export type Course = {
+    id: number;
+    course_name: string;
+    // ... add other Course fields if needed
+};
