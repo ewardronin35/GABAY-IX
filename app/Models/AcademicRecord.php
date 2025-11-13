@@ -13,7 +13,17 @@ class AcademicRecord extends Model
     /**
      * Allow mass assignment for all fields.
      */
-    protected $guarded = [];
+    protected $fillable = 
+    [
+        'scholar_enrollment_id',
+        'hei_id',
+        'course_id',
+        'year_level',
+        'academic_year',
+        'status',
+        'date_enrolled',
+        'date_graduated',
+    ];
 
     /**
      * Get the scholar enrollment that this record belongs to.

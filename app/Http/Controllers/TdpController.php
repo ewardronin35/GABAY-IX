@@ -443,32 +443,29 @@ public function bulkUpdate(Request $request)
     /**
      * Handle the import request by dispatching a background job.
      */
-   public function import(Request $request): JsonResponse
+  public function import(Request $request): JsonResponse
     {
-        // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
-        
-        // 1. Validate the *file upload* itself, not a string path.
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv'
         ]);
 
         try {
-            // 2. Get the file from the request and store it.
-            // This is the logic that was in your `upload` method.
-            $filePath = $request->file('file')->store('imports');
+            //
+            // ▼▼▼ THIS IS THE FIX ▼▼▼
+            //
+            // 1. Store the file on the 'private' disk
+            $filePath = $request->file('file')->store('imports', 'private');
 
-             // 3. Make sure the file was stored (it should be, but good to check)
-            if (!Storage::exists($filePath)) {
+            // 2. Check for the file on the 'private' disk
+            if (!Storage::disk('private')->exists($filePath)) {
                  Log::error('TDP File Import Error: File not found after storing at: ' . $filePath);
                  return response()->json(['message' => 'File not found on server after upload.'], 404);
             }
             
-            // 4. Dispatch the job with the file path
-            ProcessTdpImport::dispatch($filePath); // This uses your refactored TdpImport.php
+            // 3. Dispatch the job with the file path
+            ProcessTdpImport::dispatch($filePath);
             
-            // 5. Return an immediate success message
             return response()->json(['message' => 'File received! Processing will begin in the background.']);
-        // --- ▲▲▲ END OF FIX ▲▲▲ ---
 
         } catch (\Exception $e) {
             Log::error('TDP File Upload Error: ' . $e->getMessage());
