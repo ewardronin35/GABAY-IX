@@ -1,10 +1,12 @@
 // resources/js/pages/Admin/Tdp/Index.tsx
 
-import  AuthenticatedLayout  from '@/layouts/app-layout';
-
+import AuthenticatedLayout from "@/layouts/app-layout";
 import {
-    PageProps, PaginatedResponse, ScholarEnrollment,
-    HEI, Course, Paginator,
+    PageProps,
+    PaginatedResponse,
+    HEI,
+    AcademicRecord,
+    Semester,
 } from "@/types";
 import { Head, router } from "@inertiajs/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,104 +17,133 @@ import { TdpImportForm } from "./Partials/TdpImportForm";
 import { TdpReportGenerator } from "./Partials/TdpReportGenerator";
 import { School, Sheet, List, BarChart3, Upload } from "lucide-react";
 import { route } from "ziggy-js";
+
 export type TdpPageProps = PageProps & {
-    databaseEnrollments: PaginatedResponse<ScholarEnrollment>; // <-- ADD THIS
-    enrollments: PaginatedResponse<ScholarEnrollment>;
-    paginatedHeis: PaginatedResponse<HEI & { scholar_count: number }>;
+    databaseEnrollments: PaginatedResponse<AcademicRecord>;
+    enrollments: PaginatedResponse<AcademicRecord>;
+    paginatedHeis: PaginatedResponse<HEI & { enrollments_count: number }>;
     statistics: {
-        totalScholars: number; uniqueHeis: number;
-        uniqueProvinces: number; uniqueCourses: number;
+        totalScholars: number;
+        uniqueHeis: number;
+        uniqueProvinces: number;
+        uniqueCourses: number;
+    };
+    // NEW: Add graphs definition here
+    graphs: {
+        sexDistribution: { name: string; value: number }[];
+        yearLevelDistribution: { name: string; value: number }[];
+        statusDistribution: { name: string; value: number }[];
+        topHeis: { name: string; value: number }[];
     };
     academicYears: string[];
-    semesters: string[];
-    courses: Course[];
+    semesters: Semester[];
+    batches: string[];
+    heiList: Pick<HEI, "id" | "hei_name">[];
+    programs?: { id: number; program_name: string }[]; 
+    courses?: { id: number; course_name: string }[]; 
     filters: {
-        search_db?: string; search_ml?: string;
-        search_hei?: string; academic_year?: string;
+        search_ml?: string;
+        search_db?: string;
+        search_hei?: string;
+        academic_year?: string;
         semester?: string;
+        batch_no?: string;
+        hei_id?: string;
         tab?: string;
+        course_id?: string;
+        program_id?: string;
     };
 };
 
-export default function Index({ auth, ...props }: TdpPageProps) {
-    if (!auth.user) return null; 
-const currentTab = props.filters.tab || 'hei';
+export default function Index(props: TdpPageProps) {
+    const {
+        auth,
+        databaseEnrollments,
+        enrollments,
+        paginatedHeis,
+        statistics,
+        graphs, // <--- 1. RECEIVE THE GRAPHS PROP
+        academicYears,
+        semesters,
+        batches,
+        heiList,
+        filters,
+        ziggy,
+        courses
+    } = props;
 
-    // 2. Create a handler that updates the URL when you change tabs
-    const handleTabChange = (newTab: string) => {
-        // We use router.get to update the URL's 'tab' parameter
-        router.get(route('superadmin.tdp.index'), {
-            ...props.filters, // Keep all other filters
-            tab: newTab,      // Set the new tab
-        }, {
-            preserveState: true,
-            replace: true,
-          preserveScroll: true,
-        });
+    if (!auth.user) return null;
+
+    const onTabChange = (value: string) => {
+        router.get(
+            route("superadmin.tdp.index"),
+            { ...filters, tab: value },
+            { preserveState: true, replace: true, preserveScroll: true }
+        );
     };
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    TDP Management
-                </h2>
-            }
-        >
-            <Head title="TDP Management" />
 
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <Tabs 
-                        value={currentTab} 
-                        onValueChange={handleTabChange}
-                        className="w-full" // <- (defaultValue="hei" is removed)
+    return (
+        <AuthenticatedLayout user={auth.user} page_title="TDP Management">
+            <Head title="TDP Management" />
+            <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+                <div className="flex items-center justify-between space-y-2">
+                    <h2 className="text-3xl font-bold tracking-tight">
+                        Tulong Dunong Program (TDP)
+                    </h2>
+                </div>
+
+                <div className="space-y-4">
+                    <Tabs
+                        defaultValue={ziggy.query.tab || "hei"}
+                        onValueChange={onTabChange}
                     >
-                        <TabsList className="grid w-full grid-cols-5 h-12">
-                            <TabsTrigger value="hei" className="text-xs sm:text-sm gap-2">
-                                <School className="h-4 w-4" />
-                                <span className="hidden sm:inline">HEI</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="database" className="text-xs sm:text-sm gap-2">
-                                <Sheet className="h-4 w-4" />
-                                <span className="hidden sm:inline">Database</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="masterlist" className="text-xs sm:text-sm gap-2">
-                                <List className="h-4 w-4" />
-                                <span className="hidden sm:inline">Masterlist</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="import" className="text-xs sm:text-sm gap-2">
-                                <Upload className="h-4 w-4" />
-                                <span className="hidden sm:inline">Import</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="reports" className="text-xs sm:text-sm gap-2">
-                                <BarChart3 className="h-4 w-4" />
-                                <span className="hidden sm:inline">Reports</span>
-                            </TabsTrigger>
-                        </TabsList>
+                        <div className="overflow-x-auto pb-2">
+                            <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-auto min-w-full md:min-w-0">
+                                <TabsTrigger value="hei" className="px-3 flex-1 md:flex-none">
+                                    <School className="w-4 h-4 mr-2" /> By School
+                                </TabsTrigger>
+                                <TabsTrigger value="database" className="px-3 flex-1 md:flex-none">
+                                    <List className="w-4 h-4 mr-2" /> Database
+                                </TabsTrigger>
+                                <TabsTrigger value="masterlist" className="px-3 flex-1 md:flex-none">
+                                    <Sheet className="w-4 h-4 mr-2" /> Masterlist
+                                </TabsTrigger>
+                                <TabsTrigger value="import" className="px-3 flex-1 md:flex-none">
+                                    <Upload className="w-4 h-4 mr-2" /> Import
+                                </TabsTrigger>
+                                <TabsTrigger value="reports" className="px-3 flex-1 md:flex-none">
+                                    <BarChart3 className="w-4 h-4 mr-2" /> Reports
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
 
                         <TabsContent value="hei">
                             <TdpHeiGrid
-                                paginatedHeis={props.paginatedHeis}
-                                filters={props.filters}
+                                paginatedHeis={paginatedHeis}
+                                filters={filters}
                             />
                         </TabsContent>
-                        
+
                         <TabsContent value="database">
                             <TdpDatabaseGrid
-                               databaseData={props.databaseEnrollments} // <-- NEW UNIQUE NAME // <-- NEW
-                                filters={props.filters}
-                                academicYears={props.academicYears}
-                                semesters={props.semesters}
+                                databaseData={databaseEnrollments}
+                                filters={filters}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
+                                courses={courses} 
                             />
                         </TabsContent>
 
                         <TabsContent value="masterlist">
                             <TdpMasterlistGrid
-                                enrollments={props.enrollments}
-                                filters={props.filters}
-                                academicYears={props.academicYears}
-                                semesters={props.semesters}
+                                enrollments={enrollments}
+                                filters={filters}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
                             />
                         </TabsContent>
 
@@ -121,8 +152,16 @@ const currentTab = props.filters.tab || 'hei';
                         </TabsContent>
 
                         <TabsContent value="reports">
-                            <TdpReportGenerator
-                                statistics={props.statistics}
+                            {/* 2. PASS GRAPHS TO THE COMPONENT */}
+                            <TdpReportGenerator 
+                                statistics={statistics} 
+                                graphs={graphs} // <--- HERE
+                                filters={filters}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
+                                courses={courses}
                             />
                         </TabsContent>
                     </Tabs>

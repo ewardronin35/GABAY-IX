@@ -29,4 +29,12 @@ public function scholars()
 {
     return $this->belongsToMany(Scholar::class, 'scholar_enrollments');
 }
+
+ public function getAcademicYears(): array
+    {
+        return AcademicRecord::query()
+            ->whereHas('enrollment', fn($q) => $q->where('program_id', $this->id))
+            ->distinct()->orderBy('academic_year', 'desc')
+            ->pluck('academic_year')->toArray();
+    }
 }

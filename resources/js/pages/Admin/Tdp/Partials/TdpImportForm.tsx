@@ -4,14 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { OfficialHeader } from '@/components/ui/OfficialHeader';
 import { FilePond, registerPlugin } from 'react-filepond';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
-import FilePondPluginImagePreview from 'filepond-plugin-image-preview';
 import 'filepond/dist/filepond.min.css';
-import 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css';
 import { route } from 'ziggy-js';
 import { toast } from 'sonner';
 
 // Register the plugins
-registerPlugin(FilePondPluginFileValidateType, FilePondPluginImagePreview);
+registerPlugin(FilePondPluginFileValidateType);
 
 export function TdpImportForm() {
     return (
@@ -19,48 +17,60 @@ export function TdpImportForm() {
             <CardHeader>
                 <OfficialHeader title="TDP Import" />
                 <CardDescription>
-                    Upload an Excel file (.xlsx, .xls) to bulk-import TDP scholar records.
+                    Upload an Excel file (.xlsx, .xls, .csv) to bulk-import TDP scholar records.
                     Ensure the columns match the required format.
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <FilePond
-                    name="file" // This must match the key in your controller validation
+                    name="masterlist" // This must match the key in your controller
                     server={{
                         process: {
-                            // --- ▼▼▼ FIX 1: URL goes INSIDE the process object ---
-                            url: route('superadmin.tdp.import'), 
+                            url: route('superadmin.tdp.import'), // The route to post to
                             headers: {
-                                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content
+                                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content,
                             },
                             onload: (response) => {
-                                // --- ▼▼▼ FIX 2: Safer JSON parsing ---
                                 try {
                                     const res = JSON.parse(response as string);
-                                    toast.success(res.message || "File uploaded successfully!");
+                                    if (res.success) {
+                                        toast.success("Import Started", {
+                                            description: res.success || "Your file is being processed in the background.",
+                                        });
+                                    } else {
+                                        toast.error("Import Failed", {
+                                            description: res.error || "The server reported an issue.",
+                                        });
+                                    }
                                 } catch (e) {
-                                    toast.error("Received an invalid response from server.");
-                                    console.error("Failed to parse JSON:", response);
+                                    toast.error("Import failed to start", {
+                                        description: "Received an unexpected response from the server.",
+                                    });
+                                    console.error("Failed to parse JSON response:", response);
                                 }
                                 return response;
                             },
                             onerror: (response) => {
-                                // --- ▼▼▼ FIX 3: Safer error handling ---
-                                let message = "An unknown error occurred.";
-                                try {
-                                    // Try to parse it as JSON
-                                    const res = JSON.parse(response as string);
-                                    message = res.message || "An error occurred.";
-                                } catch (e) {
-                                    // It's not JSON (it's probably HTML), so don't show it.
-                                    message = "File upload failed. Server returned an error.";
-                                }
-                                toast.error(message);
+                                // --- THIS IS THE FIX ---
+                                // The 'response' is likely an HTML error page.
+                                // Don't try to parse it. Show a generic error.
+                                
+                                toast.error("File Upload Failed", {
+                                    description: "The server returned an error. Please check the file or contact support.",
+                                });
+
+                                // Log the full HTML error to the console for debugging
+                                console.error("Server Error Response:", response);
+                                
                                 return response;
                             },
                         },
                     }}
-                    acceptedFileTypes={['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']}
+                    acceptedFileTypes={[
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+                        'application/vnd.ms-excel',
+                        'text/csv'
+                    ]}
                     labelIdle='Drag & Drop your Excel file or <span class="filepond--label-action">Browse</span>'
                     credits={false}
                 />

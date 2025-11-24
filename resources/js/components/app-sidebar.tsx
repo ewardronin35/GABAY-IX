@@ -12,7 +12,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { type NavItem, type SharedData, type PageProps } from '@/types';
+import { type PageProps } from '@/types';
+type NavItem = {
+    title: string;
+    href?: string;
+    icon?: any;
+    isActive?: boolean;
+    children?: NavItem[];
+};
 import { Link, usePage } from '@inertiajs/react';
 
 import {
@@ -287,7 +294,10 @@ const { auth, ziggy } = usePage<PageProps>().props;
     ];
     // --- FIX: Correctly get roles and determine primary role ---
     // Ensure roles is treated as an array, even if undefined/null initially
-    const userRoles = (auth.user?.roles as string[]) || []; 
+    const rawRoles = auth.user?.roles as unknown;
+    const userRoles: string[] = Array.isArray(rawRoles)
+        ? (rawRoles as any[]).map((r) => (typeof r === 'string' ? r : r?.name ?? ''))
+        : [];
     // Use the first role for the switch logic, handle cases where roles might be empty
     const primaryRole = userRoles.length > 0 ? userRoles[0] : null; 
 

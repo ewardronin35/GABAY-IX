@@ -1,150 +1,107 @@
-import  AuthenticatedLayout  from '@/layouts/app-layout';
-import { PageProps, Scholar } from "@/types";
-import { Head } from "@inertiajs/react";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
-
-// --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
+// resources/js/pages/Admin/Tdp/Partials/ShowScholar.tsx
+import AuthenticatedLayout from '@/layouts/app-layout';
+import { PageProps, Scholar, AcademicRecord, HEI, Course, Major, ScholarEnrollment, Address } from "@/types";
+import { Head, Link } from "@inertiajs/react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-// --- ▲▲▲ END OF FIX ▲▲▲ ---
+import { academicRecordColumns } from "./ShowScholarColumns"; 
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import { route } from 'ziggy-js';
+import { Badge } from '@/components/ui/badge';
 
+// Define a more specific type for the page prop
 type ShowScholarProps = PageProps & {
-    scholar: Scholar;
+    scholar: Scholar & {
+        // --- THIS IS THE FIX ---
+        // Update the type to match the snake_case from the database
+        address: Address & {
+            congressional_district: string | null;
+            specific_address?: string | null;
+            // Add other fields if you use them directly, otherwise 'Address' type is fine
+        } | null;
+        enrollments: (ScholarEnrollment & {
+            program?: { program_name?: string | null } | null;
+            hei: HEI;
+            academic_records: (AcademicRecord & { // <-- FIX TYPE
+                course: Course | null;
+                major: Major | null;
+            })[];
+        })[];
+        // --- END OF FIX ---
+    };
 };
 
 export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
+    
+    console.log('--- FRONTEND: 1. RECEIVED SCHOLAR PROP ---');
+    console.log(JSON.stringify(scholar, null, 2));
     if (!auth.user) return null;
 
     const {
-        given_name,
-        family_name,
-        middle_name,
-        extension_name,
-        sex,
-        contact_no,
-        email_address,
-        address,
-        education,
-        enrollments,
+        given_name, family_name, middle_name, extension_name,
+        sex, contact_no, email_address, address, enrollments
     } = scholar;
+    
+    const tdpEnrollment = enrollments?.[0];
+    
+    // --- THIS IS THE FIX ---
+    // Change from .academicRecords to .academic_records
+    const history = tdpEnrollment?.academic_records || [];
+    // --- END OF FIX ---
+    
+    const fullName = [family_name, given_name, middle_name, extension_name].filter(Boolean).join(' ');
 
-    const fullName = [family_name, given_name, middle_name, extension_name]
-        .filter(Boolean)
-        .join(", ");
+    // Use the renamed 'specific_address' field from your migration
+    const fullAddress = [
+        address?.specific_address, // <-- FIX: Use specific_address
+        address?.town_city, 
+        address?.province
+    ].filter(Boolean).join(', ');
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    {fullName}
-                </h2>
-            }
-        >
+        <AuthenticatedLayout user={auth.user} page_title={fullName}>
             <Head title={fullName} />
-
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+                <div className="flex items-center justify-between">
+                    <Link href={route('superadmin.tdp.index', { tab: 'database' })}>
+                        <Button variant="outline">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back to Database
+                        </Button>
+                    </Link>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                    {/* Scholar Info Card */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Scholar Information</CardTitle>
+                            <CardTitle>{fullName}</CardTitle>
+                            <CardDescription>
+                                Scholar's personal information.
+                            </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <InfoItem label="Full Name" value={fullName} />
-                                <InfoItem label="Email" value={email_address} />
-                                <InfoItem label="Contact" value={contact_no} />
-                                <InfoItem label="Sex" value={sex} />
-                                <InfoItem
-                                    label="Address"
-                                    value={[
-                                        address?.brgy_street,
-                                        address?.town_city,
-                                        address?.province,
-                                    ]
-                                        .filter(Boolean)
-                                        .join(", ")}
-                                />
-                                <InfoItem
-                                    label="HEI"
-                                    value={education?.hei?.hei_name}
-                                />
-                                <InfoItem
-                                    label="Course"
-                                    value={education?.course?.course_name}
-                                />
-                            </div>
+                        <CardContent className="grid grid-cols-2 gap-4">
+                            <InfoItem label="Sex" value={sex} />
+                            <InfoItem label="Email" value={email_address} />
+                            <InfoItem label="Contact No." value={contact_no} />
+                            <InfoItem label="Program" value={tdpEnrollment?.program?.program_name} />
+                            <InfoItem label="HEI" value={tdpEnrollment?.hei?.hei_name} />
+                            <InfoItem label="Award No." value={tdpEnrollment?.award_number} />
+                            <InfoItem label="Address" value={fullAddress} />
+                            <InfoItem label="District" value={address?.congressional_district} />
                         </CardContent>
                     </Card>
 
-                    {/* --- Enrollment History Card --- */}
-                    <Card>
+                    {/* Scholar History Card */}
+                    <Card className="md:col-span-2">
                         <CardHeader>
-                            <CardTitle>Enrollment History</CardTitle>
+                            <CardTitle>Academic & Payment History</CardTitle>
                             <CardDescription>
-                                A record of the scholar's enrollments and
-                                academic status per semester.
+                                A full history of this scholar's records under the TDP program.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Accordion
-                                type="multiple"
-                                className="w-full"
-                            >
-                                {enrollments && enrollments.length > 0 ? (
-                                    enrollments.map((enrollment) => (
-                                        <AccordionItem
-                                            value={`enrollment-${enrollment.id}`}
-                                            key={enrollment.id}
-                                        >
-                                            <AccordionTrigger>
-                                                <div className="flex justify-between items-center w-full pr-4">
-                                                    <span className="font-semibold text-lg">
-                                                        {enrollment.program.program_name}
-                                                    </span>
-                                                    <Badge>
-                                                        {enrollment.status}
-                                                    </Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent>
-                                                <DataTable
-                                                    columns={
-                                                        academicRecordColumns
-                                                    }
-                                                    data={
-                                                        enrollment.academicRecords
-                                                    }
-                                                />
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))
-                                ) : (
-                                    <p className="text-center text-gray-500">
-                                        No enrollment history found.
-                                    </p>
-                                )}
-                            </Accordion>
+                            <DataTable columns={academicRecordColumns} data={history} />
                         </CardContent>
                     </Card>
                 </div>
@@ -154,52 +111,11 @@ export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
 }
 
 // Helper component for info items
-const InfoItem = ({
-    label,
-    value,
-}: {
-    label: string;
-    value: string | null | undefined;
-}) => (
+const InfoItem = ({ label, value }: { label: string | null | undefined; value: string | null | undefined; }) => (
     <div>
-        <dt className="text-sm font-medium text-gray-500">{label}</dt>
+        <dt className="text-sm font-medium text-gray-500">{label || 'N/A'}</dt>
         <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
             {value || "N/A"}
         </dd>
     </div>
 );
-
-// --- Columns for the history table ---
-import type { ColumnDef } from "@tanstack/react-table";
-import { AcademicRecord } from "@/types";
-
-export const academicRecordColumns: ColumnDef<AcademicRecord>[] = [
-    {
-        accessorKey: "academic_year",
-        header: "A.Y.",
-    },
-    {
-        accessorKey: "semester",
-        header: "Semester",
-    },
-    {
-        accessorKey: "year_level",
-        header: "Year Level",
-    },
-    {
-        accessorKey: "grant_amount",
-        header: "Grant",
-        cell: ({ row }) => {
-            const amount = parseFloat(row.getValue("grant_amount") || "0");
-            const formatted = new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "PHP",
-            }).format(amount);
-            return <div className="text-right font-medium">{formatted}</div>;
-        },
-    },
-    {
-        accessorKey: "payment_status",
-        header: "Payment Status",
-    },
-];

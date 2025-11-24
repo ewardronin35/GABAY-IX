@@ -1,31 +1,19 @@
 // resources/js/pages/Admin/Tdp/Partials/TdpHeiGrid.tsx
-
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+    Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@inertiajs/react";
 import type { TdpPageProps } from "../Index";
-import { Pagination } from "@/components/ui/pagination"; 
+import { PaginationLinks } from "@/components/ui/PaginationLinks"; // Use correct pagination
 import { Input } from "@/components/ui/input";
 import { useSearch } from "@/hooks/useSearch";
-// --- ▼▼▼ FIX: Import Button and Eye icon ▼▼▼ ---
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { route } from "ziggy-js";
-// --- ▲▲▲ END OF FIX ▲▲▲ ---
 
 type TdpHeiGridProps = {
     paginatedHeis: TdpPageProps["paginatedHeis"];
@@ -33,33 +21,38 @@ type TdpHeiGridProps = {
 };
 
 export function TdpHeiGrid({ paginatedHeis, filters }: TdpHeiGridProps) {
-    const { search, handleSearch } = useSearch("superadmin.tdp.index", filters.search_db, "search_db");
+    
+    // --- FIX: Use 'search_hei' to match the controller ---
+    const { search, handleSearch } = useSearch(
+        "superadmin.tdp.index",
+        filters.search_hei || "", // Use 'search_hei'
+        "search_hei"              // Use 'search_hei'
+    );
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>TDP Database by HEI</CardTitle>
+                <CardTitle>TDP Schools (HEIs)</CardTitle>
                 <CardDescription>
-                    A paginated list of all HEIs with TDP scholars.
+                    List of schools with active TDP scholars.
                 </CardDescription>
-                <Input
-                    type="search"
-                    placeholder="Search HEIs..."
-                    value={search}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="max-w-sm"
-                />
+                <div className="mt-4">
+                    <Input
+                        placeholder="Search by HEI name..."
+                        value={search}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="w-full sm:max-w-xs"
+                    />
+                </div>
             </CardHeader>
             <CardContent>
-                <div className="rounded-md border">
+                <div className="border rounded-md">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>HEI Name</TableHead>
-                                <TableHead>Total Scholars</TableHead>
-                                {/* --- ▼▼▼ FIX: Added Actions column ▼▼▼ --- */}
-                                <TableHead className="text-right">Actions</TableHead>
-                                {/* --- ▲▲▲ END OF FIX ▲▲▲ --- */}
+                                <TableHead>Scholar Count</TableHead>
+                                <TableHead>Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -70,12 +63,10 @@ export function TdpHeiGrid({ paginatedHeis, filters }: TdpHeiGridProps) {
                                             {hei.hei_name}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="secondary">
-                                                {hei.scholar_count}
-                                            </Badge>
+                                            {/* --- FIX: Use enrollments_count (from controller's withCount) --- */}
+                                            <Badge>{hei.enrollments_count} Scholars</Badge>
                                         </TableCell>
-                                        {/* --- ▼▼▼ FIX: Added Action button cell ▼▼▼ --- */}
-                                        <TableCell className="text-right">
+                                        <TableCell>
                                             <Link
                                                 href={route(
                                                     "superadmin.tdp.hei.show",
@@ -87,13 +78,12 @@ export function TdpHeiGrid({ paginatedHeis, filters }: TdpHeiGridProps) {
                                                 </Button>
                                             </Link>
                                         </TableCell>
-                                        {/* --- ▲▲▲ END OF FIX ▲▲▲ --- */}
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={3} // <-- Changed from 2 to 3
+                                        colSpan={3}
                                         className="h-24 text-center"
                                     >
                                         No HEIs found.
@@ -103,7 +93,10 @@ export function TdpHeiGrid({ paginatedHeis, filters }: TdpHeiGridProps) {
                         </TableBody>
                     </Table>
                 </div>
-                <Pagination paginator={paginatedHeis} className="mt-4" />
+                
+                {/* --- FIX: Use PaginationLinks and safely access .meta.links --- */}
+                <PaginationLinks links={paginatedHeis?.meta?.links || []} />
+
             </CardContent>
         </Card>
     );

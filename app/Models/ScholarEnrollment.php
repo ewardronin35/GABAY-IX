@@ -5,7 +5,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class ScholarEnrollment extends Model
 {
     use HasFactory;
@@ -46,8 +46,8 @@ class ScholarEnrollment extends Model
  /**
  * Get all of the academic records for the ScholarEnrollment.
  */
-public function academicRecords()
+public function academicRecords(): HasMany
 {
-    return $this->hasMany(AcademicRecord::class, 'scholar_enrollment_id');
+    return $this->hasMany(AcademicRecord::class);
 }
 }

@@ -47,7 +47,9 @@ class ChatbotController extends Controller
 
         // 4. Make the secure, server-to-server call to Google's API
         try {
-            $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={$apiKey}";
+            // Use the stable 1.5 Flash model
+// UPDATED: Using the stable Gemini 2.5 Flash model (Standard for late 2025)
+$apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}";
             
             $response = Http::post($apiUrl, $payload);
 

@@ -28,7 +28,7 @@ use App\Http\Controllers\BatchController;
 use App\Http\Controllers\ChatbotController; // <-- Add this
 use App\Http\Controllers\FinancialRequestController;
 use App\Http\Controllers\UnifastRc\ValidationController;
-
+use App\Http\Controllers\BillingRecordController; // <-- Add this at the top
 // All your other routes are here...
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
 Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback'])->name('socialite.callback');
@@ -110,7 +110,16 @@ Route::get('/reports/generate-masterlist-pdf', [ReportController::class, 'genera
 // In routes/web.php
 Route::get('/reports/masterlist-data', [CoschoController::class, 'masterlistData'])->name('reports.masterlistData');
     // Master List
- 
+ Route::get('/', [TdpController::class, 'index'])->name('index');
+
+    // 2. Fetch Data for Grid (If using AJAX fetch)
+    Route::get('/data', [TdpController::class, 'getData'])->name('data'); 
+
+    // 3. Bulk Update (Saving Grid Changes)
+    Route::post('/bulk-update', [TdpController::class, 'bulkUpdate'])->name('bulk-update');
+
+    // 4. Bulk Destroy (Deleting Selected Rows)
+    Route::post('/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('bulk-destroy');
 
 Route::get('/tes', [TesController::class, 'index'])->name('tes.index');
     Route::put('/tes/bulk-update', [TesController::class, 'bulkUpdate'])->name('tes.bulkUpdate');
@@ -134,9 +143,8 @@ Route::post('/stufap/statistics-pdf', [StufapController::class, 'generateStatist
 Route::get('/stufap/masterlist/pdf', [StufapController::class, 'generateMasterlistPdf'])->name('stufap.masterlist.pdf');
 Route::get('/stufap/masterlist/excel', [StufapController::class, 'generateMasterlistExcel'])->name('stufap.masterlist.excel');
 
-
 Route::get('/tdp', [TdpController::class, 'index'])->name('tdp.index');
-    Route::put('/tdp/bulk-update', [TdpController::class, 'bulkUpdate'])->name('tdp.bulkUpdate');
+   Route::post('/tdp/bulk-update', [TdpController::class, 'bulkUpdate'])->name('tdp.bulk-update');
     Route::post('/tdp/upload', [TdpController::class, 'upload'])->name('tdp.upload');
     Route::post('/tdp/import', [TdpController::class, 'import'])->name('tdp.import');
     Route::get('/tdp/statistics-data', [TdpController::class, 'fetchStatisticsData'])->name('tdp.statisticsData');
@@ -146,7 +154,7 @@ Route::get('/tdp', [TdpController::class, 'index'])->name('tdp.index');
     Route::get('/tdp/masterlist/pdf', [TdpController::class, 'generateMasterlistPdf'])->name('tdp.masterlistPdf'); // ✅ Fixed
     Route::get('/tdp/hei/{hei}', [TdpController::class, 'showHei'])->name('tdp.hei.show'); // ✅ ADD THIS
     Route::get('/tdp/scholar/{scholar}', [TdpController::class, 'showScholar'])->name('tdp.scholar.show');
-
+Route::post('tdp/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('tdp.bulk-destroy');
 Route::get('/estatskolar', [EstatController::class, 'index'])->name('estatskolar.index');
 Route::put('/estatskolar/bulk-update', [EstatController::class, 'bulkUpdate'])->name('estatskolar.bulkUpdate');
 Route::put('/estatskolar/monitoring-bulk-update', [EstatController::class, 'monitoringBulkUpdate'])->name('estatskolar.monitoringBulkUpdate');
@@ -253,6 +261,8 @@ Route::delete('/uploads/revert', [UploadController::class, 'revert']);
     Route::post('/financial-request', [FinancialRequestController::class, 'store'])->name('financial.store');
 Route::get('/financial-requests', [FinancialRequestController::class, 'index'])->name('financial.index');
 Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
+Route::patch('/billing-records/{billingRecord}', [BillingRecordController::class, 'update'])->name('billing-records.update');
+
 });
 
 Route::middleware(['auth', 'role:Accounting'])->prefix('accounting')->name('accounting.')->group(function () {

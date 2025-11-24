@@ -6,6 +6,7 @@ import { route } from "ziggy-js";
 import { Link } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export const columns: ColumnDef<ScholarEnrollment>[] = [
     {
@@ -21,30 +22,39 @@ export const columns: ColumnDef<ScholarEnrollment>[] = [
                 .join(", "),
         cell: ({ row }) => {
             const name = row.getValue("name") as string;
-            return <div className="font-medium">{name}</div>;
+            return (
+                <Link 
+                    href={route("superadmin.tdp.scholar.show", row.original.scholar.id)} 
+                    className="font-medium text-blue-600 hover:underline"
+                >
+                    {name}
+                </Link>
+            );
         },
     },
     {
         accessorKey: "scholar.email_address",
         header: "Email",
+        // --- FIX: Add N/A ---
+        cell: ({ row }) => row.original.scholar.email_address || "N/A"
     },
     {
         accessorKey: "scholar.contact_no",
         header: "Contact No.",
+        // --- FIX: Add N/A ---
+        cell: ({ row }) => row.original.scholar.contact_no || "N/A"
     },
     {
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-            // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
             <Link
                 href={route(
                     "superadmin.tdp.scholar.show",
                     row.original.scholar.id,
                 )}
             >
-            {/* --- ▲▲▲ END OF FIX ▲▲▲ --- */}
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="icon">
                     <Eye className="h-4 w-4" />
                 </Button>
             </Link>

@@ -2,56 +2,75 @@
 
 namespace App\Exports;
 
-use App\Models\TesAcademicRecord;
-use Illuminate\Contracts\View\View;
-use Maatwebsite\Excel\Concerns\FromView;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Events\AfterSheet;
-use Illuminate\Http\Request;
+use App\Models\AcademicRecord; // Import the correct model
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Illuminate\Database\Eloquent\Builder; // Import the Builder
 
-class TesMasterlistExport implements FromView, WithStyles, WithEvents
+class TesMasterlistExport implements FromQuery, WithHeadings, WithMapping
 {
-    protected $request;
+    protected $query;
 
-    public function __construct(Request $request)
+    /**
+     * Accept the query Builder, not the Request.
+     */
+    public function __construct(Builder $query)
     {
-        $this->request = $request;
+        $this->query = $query;
     }
 
-    public function view(): View
+    /**
+     * Return the query that was passed in.
+     */
+    public function query()
     {
-        $mlQuery = TesAcademicRecord::with(['scholar', 'hei', 'course']);
-        $mlQuery->when($this->request->input('search_ml'), function ($q, $search) {
-            return $q->whereHas('scholar', function ($scholarQuery) use ($search) {
-                $scholarQuery->where('family_name', 'LIKE', "%{$search}%");
-            });
-        });
-        $records = $mlQuery->latest()->get();
-
-        return view('exports.tes-masterlist-excel', ['records' => $records]);
+        return $this->query;
     }
 
-    public function styles(Worksheet $sheet)
-    {
-        // Style the header row
-        $sheet->getStyle('A1:T1')->applyFromArray([
-            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '0070C0']],
-        ]);
-    }
-
-    public function registerEvents(): array
+    /**
+     * Define the column headings for the Excel file.
+     */
+    public function headings(): array
     {
         return [
-            AfterSheet::class => function(AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
-                $sheet->freezePane('A2'); // Freeze header row
-                foreach (range('A', 'T') as $columnID) {
-                    $sheet->getColumnDimension($columnID)->setAutoSize(true);
-                }
-            },
+            'Family Name',
+            'Given Name',
+            'Middle Name',
+            'Sex',
+            'Region',
+            'HEI',
+            'Course',
+            'Major', // Added Major
+            'Year Level',
+            'Remarks',
+        ];
+    }
+
+    /**
+     * Map the data from the new normalized structure.
+     * $record is an AcademicRecord model.
+     */
+    public function map($record): array
+    {
+        // Use the new relationships
+        $scholar = $record->enrollment->scholar;
+        $address = $scholar->address; // Access address from the main scholar
+        $hei = $record->hei;
+        $course = $record->course;
+        $major = $record->major;
+
+        return [
+            $scholar->family_name ?? 'N/A',
+            $scholar->given_name ?? 'N/A',
+            $scholar->middle_name ?? '',
+            $scholar->sex ?? 'N/A',
+            $address->region ?? 'N/A',
+            $hei->hei_name ?? 'N/A',
+            $course->course_name ?? 'N/A',
+            $major->major_name ?? '', // Added Major
+            $record->year_level ?? 'N/A',
+            $record->remarks ?? '',
         ];
     }
 }

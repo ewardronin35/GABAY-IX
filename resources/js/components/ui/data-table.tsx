@@ -1,3 +1,4 @@
+// resources/js/components/ui/data-table.tsx
 
 import * as React from "react"
 import {
@@ -31,14 +32,24 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown } from "lucide-react"
 
+// --- THIS IS THE FIX ---
+// Add new optional props for filtering
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  filterColumnId?: string;
+  filterPlaceholder?: string;
 }
+// --- END OF FIX ---
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  // --- THIS IS THE FIX ---
+  // Destructure the new props
+  filterColumnId,
+  filterPlaceholder = "Filter...", // Default placeholder
+  // --- END OF FIX ---
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -70,14 +81,23 @@ export function DataTable<TData, TValue>({
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter names..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
+        
+        {/* --- THIS IS THE FIX --- */}
+        {/* Only render the Input if filterColumnId is provided */}
+        {filterColumnId && (
+          <Input
+            placeholder={filterPlaceholder}
+            value={
+              (table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ""
+            }
+            onChange={(event) =>
+              table.getColumn(filterColumnId)?.setFilterValue(event.target.value)
+            }
+            className="max-w-sm"
+          />
+        )}
+        {/* --- END OF FIX --- */}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">

@@ -1,147 +1,141 @@
+// resources/js/pages/Admin/Tdp/Partials/ShowHei.tsx
 import AuthenticatedLayout from '@/layouts/app-layout';
-import {
-    PageProps,
-    PaginatedResponse,
-    ScholarEnrollment,
-    HEI,
-} from "@/types";
-import { Head } from "@inertiajs/react";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
+import { PageProps, PaginatedResponse, ScholarEnrollment, HEI, Course } from "@/types";
+import { Head, Link, router } from "@inertiajs/react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import { columns } from "./TdpHeiGridColumns"; // Assuming you reuse columns
-import { Pagination } from "@/components/ui/pagination";
+import { columns } from "./TdpHeiGridColumns"; 
+import { PaginationLinks } from "@/components/ui/PaginationLinks";
+import { Input } from '@/components/ui/input';
+import { useSearch } from '@/hooks/useSearch';
+import { route } from 'ziggy-js';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type ShowHeiProps = PageProps & {
     hei: HEI;
     enrollments: PaginatedResponse<ScholarEnrollment>;
+    filters: { 
+        search?: string;
+        academic_year?: string;
+        batch_no?: string;
+        course_id?: string;
+    };
+    academicYears: string[];
+    batches: string[];
+    courses: Pick<Course, "id" | "course_name">[];
 };
 
-export default function ShowHei({ auth, hei, enrollments }: ShowHeiProps) {
+export default function ShowHei({ auth, hei, enrollments, filters, academicYears, batches, courses }: ShowHeiProps) {
     if (!auth.user) return null;
 
-    /**
-     * Groups enrollments by their first academic record's year.
-     */
-    const groupEnrollmentsByYear = (
-        enrollmentsList: ScholarEnrollment[] | null | undefined
-    ) => {
-        // If the list is null or undefined, return an empty object
-        if (!enrollmentsList) {
-            return {};
-        }
+    const { search, handleSearch } = useSearch(
+        route('superadmin.tdp.hei.show', hei.id),
+        filters.search || "",
+        "search"
+    );
 
-        return enrollmentsList.reduce(
-            (acc, enrollment) => {
-                // --- ▼▼▼ THIS IS THE FIX ▼▼▼ ---
-                // We must use optional chaining on 'academicRecords' *before*
-                // trying to access its [0] index.
-                const year =
-                    enrollment.academicRecords?.[0]?.academic_year || "Unknown";
-                // --- ▲▲▲ END OF FIX ▲▲▲ ---
-
-                if (!acc[year]) {
-                    acc[year] = [];
-                }
-                acc[year].push(enrollment);
-                return acc;
+    // New filter handler for this page
+    const handleFilterChange = (key: string, value: string) => {
+        router.get(
+            route('superadmin.tdp.hei.show', hei.id),
+            {
+                ...filters,
+                search: search,
+                 // If value is "all", send `undefined` to clear the filter
+                [key]: value === 'all' ? undefined : value, // <-- CHANGED
             },
-            {} as Record<string, ScholarEnrollment[]>
+            { preserveState: true, replace: true, preserveScroll: true }
         );
     };
-
-    // This line is now safe because groupEnrollmentsByYear always returns an object
-    const academicYears = Object.entries(
-        groupEnrollmentsByYear(enrollments.data)
-    ).sort(
-        ([yearA], [yearB]) =>
-            parseInt(yearB.split("-")[0] || "0") -
-            parseInt(yearA.split("-")[0] || "0")
-    ); // Sort descending
+    
+    // --- DEBUGGING ---
+    // console.log("Academic Years:", JSON.stringify(academicYears));
+    // console.log("Batches:", JSON.stringify(batches));
+    // console.log("Courses:", JSON.stringify(courses));
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    {hei.hei_name}
-                </h2>
-            }
-        >
+        <AuthenticatedLayout user={auth.user} page_title={`${hei.hei_name} - Scholars`}>
             <Head title={hei.hei_name} />
-
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{hei.hei_name}</CardTitle>
-                            <CardDescription>
-                                Scholars grouped by Academic Year
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Accordion
-                                type="single"
-                                collapsible
-                                className="w-full"
-                                defaultValue={
-                                    academicYears[0]?.[0] // Default to first (latest) year
-                                }
-                            >
-                                {academicYears.length > 0 ? (
-                                    academicYears.map(([year, enrollments]) => {
-                                        const count = enrollments.length;
-                                        return (
-                                            <AccordionItem
-                                                value={year}
-                                                key={year}
-                                            >
-                                                <AccordionTrigger>
-                                                    <div className="flex justify-between items-center w-full pr-4">
-                                                        <span>
-                                                            A.Y. {year}
-                                                        </span>
-                                                        <Badge variant="secondary">
-                                                            {count}{" "}
-                                                            {count === 1
-                                                                ? "Scholar"
-                                                                : "Scholars"}
-                                                        </Badge>
-                                                    </div>
-                                                </AccordionTrigger>
-                                                <AccordionContent>
-                                                    <DataTable
-                                                        columns={columns}
-                                                        data={enrollments}
-                                                    />
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        );
-                                    })
-                                ) : (
-                                    <p className="text-center text-gray-500">
-                                        No scholars found for this HEI.
-                                    </p>
-                                )}
-                            </Accordion>
-                            
-                            {/* Add pagination controls for the main 'enrollments' prop */}
-                            <Pagination paginator={enrollments} className="mt-6" />
-                        </CardContent>
-                    </Card>
+            <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+                <div className="flex items-center justify-between">
+                    <Link href={route('superadmin.tdp.index', { tab: 'hei' })}>
+                        <Button variant="outline">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back to TDP List
+                        </Button>
+                    </Link>
                 </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>{hei.hei_name}</CardTitle>
+                        <CardDescription>
+                            All TDP scholars enrolled at this institution.
+                        </CardDescription>
+                        
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <Input
+                                placeholder="Search by scholar name..."
+                                value={search}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                className="w-full sm:max-w-xs"
+                            />
+                            <Select
+                                // If filter is not set, default to "all"
+                                value={filters.academic_year || "all"} // <-- CHANGED
+                                onValueChange={(value) => handleFilterChange("academic_year", value)}
+                            >
+                                <SelectTrigger className="w-full sm:w-[180px]">
+                                    <SelectValue placeholder="All Academic Years" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {/* Use "all" as the value */}
+                                    <SelectItem value="all">All Academic Years</SelectItem> {/* <-- CHANGED */}
+                                    {academicYears.filter(year => year).map((year) => (
+                                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={filters.batch_no || "all"} // <-- CHANGED
+                                onValueChange={(value) => handleFilterChange("batch_no", value)}
+                            >
+                                <SelectTrigger className="w-full sm:w-[180px]">
+                                    <SelectValue placeholder="All Batches" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Batches</SelectItem> {/* <-- CHANGED */}
+                                    {batches.filter(batch => batch).map((batch) => (
+                                        // Ensure batch is a string
+                                        <SelectItem key={batch} value={String(batch)}>{batch}</SelectItem> // <-- CHANGED
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={filters.course_id || "all"} // <-- CHANGED
+                                onValueChange={(value) => handleFilterChange("course_id", value)}
+                            >
+                                <SelectTrigger className="w-full sm:w-[180px]">
+                                    <SelectValue placeholder="All Courses" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Courses</SelectItem> {/* <-- CHANGED */}
+                                    {courses.filter(course => course.id).map((course) => (
+                                        <SelectItem key={course.id} value={course.id.toString()}>{course.course_name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <DataTable
+                            columns={columns} 
+                            data={enrollments.data}
+                        />
+                        <PaginationLinks links={enrollments?.meta?.links || []} />
+                    </CardContent>
+                </Card>
             </div>
         </AuthenticatedLayout>
     );

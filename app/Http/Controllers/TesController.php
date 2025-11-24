@@ -14,12 +14,10 @@ use App\Models\AcademicRecord;
 
 use App\Models\HEI;
 use App\Models\Course;
-
-use App\Jobs\ProcessTesImport;
-use App\Imports\TesImport;
+use Illuminate\Database\Eloquent\Builder; // Import the Builder class
 use App\Exports\TesMasterlistExport;
 use App\Exports\TesStatisticsExport;
-
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -31,11 +29,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
-
+use App\Jobs\ProcessMasterlistImport;
 class TesController extends Controller
 {
     private $tesProgramId;
-
+    
     /**
      * Find the TES Program ID once when the controller is loaded.
      */
@@ -88,14 +86,41 @@ class TesController extends Controller
         $pdf = Pdf::loadView('exports.tes-masterlist-pdf', ['masterlist' => $masterlist])->setPaper('legal', 'landscape');
         return $pdf->stream('TES-Masterlist.pdf');
     }
-
-    public function generateMasterlistExcel()
+private function getTesQuery(Request $request, string $searchKey = 'search_ml'): Builder
     {
-        // This function is CORRECT.
-        // It calls 'TesMasterlistExport', which we already refactored.
-        return Excel::download(new TesMasterlistExport(), 'TES-Masterlist.xlsx');
-    }
+        $query = AcademicRecord::with([
+            'enrollment.scholar', // Load the scholar
+            'hei',
+            'course'
+        ]);
 
+        // Filter to ONLY show records for the TES program
+        $query->whereHas('enrollment', function ($q) {
+            $q->where('program_id', $this->tesProgramId);
+        });
+
+        // REFACTORED SEARCH: Search through the new relationship
+        $query->when($request->input($searchKey), function ($q, $search) {
+            return $q->whereHas('enrollment.scholar', function ($scholarQuery) use ($search) {
+                $scholarQuery->where('family_name', 'like', "%{$search}%")
+                    ->orWhere('given_name', 'like', "%{$search}%")
+                    ->orWhereRaw("CONCAT(family_name, ' ', given_name) LIKE ?", ["%{$search}%"])
+                    ->orWhereRaw("CONCAT(given_name, ' ', family_name) LIKE ?", ["%{$search}%"]);
+            })->orWhereHas('hei', function ($heiQuery) use ($search) {
+                $heiQuery->where('hei_name', 'like', "%{$search}%");
+            });
+        });
+
+        return $query;
+    }
+   public function generateMasterlistExcel(Request $request)
+    {
+        // Get the current query builder instance
+        $query = $this->getTesQuery($request);
+
+        // Pass the query to the export class
+        return Excel::download(new TesMasterlistExport($query), 'TES-Masterlist.xlsx');
+    }
     public function index(Request $request): Response
     {
         // --- REFACTORED QUERY for Masterlist (ml_tes) ---
@@ -172,18 +197,23 @@ class TesController extends Controller
      * It calls the ProcessTesImport job, which in turn calls
      * the TesImport class we already refactored.
      */
-    public function import(Request $request): RedirectResponse
+   public function import(Request $request)
     {
-        $request->validate(['file' => 'required|mimes:xlsx,xls,csv']);
-        $file = $request->file('file');
-        $path = $file->store('imports');
-        
-        // Dispatch the job
-        ProcessTesImport::dispatch(storage_path('app/' . $path));
-        
-        return redirect()->back()->with('success', 'File is being processed in the background.');
-    }
+        $request->validate([
+            'masterlist' => 'required|file|mimes:xlsx,xls,csv',
+        ]);
 
+        $file = $request->file('masterlist');
+        $filePath = $file->store('imports');
+
+        // Find the TES Program ID
+        $tesProgram = Program::firstOrCreate(['program_name' => 'TES']);
+
+        // Dispatch the single, unified job
+        ProcessMasterlistImport::dispatch($filePath, $tesProgram->id, Auth::id());
+
+        return redirect()->back()->with('success', 'Masterlist is being imported. You will be notified upon completion.');
+    }
 
     /**
      * WARNING: This function is now broken and must be completely rewritten.
