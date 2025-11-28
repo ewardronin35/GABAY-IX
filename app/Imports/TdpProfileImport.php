@@ -18,6 +18,7 @@ use App\Models\Major;
 use App\Models\AcademicYear;
 use App\Models\Semester;
 use App\Models\User;
+use App\Models\Program; // <--- Added this to look up Program IDs
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithBatchInserts;
@@ -28,6 +29,11 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
 {
     private $programId;
     private $uploaderId;
+    
+    // Cache for Program IDs to avoid querying the DB 500 times
+    private $tesProgramId = null;
+    private $tdpProgramId = null;
+
     private $provinces;
     private $regions;
 
@@ -35,9 +41,26 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
     {
         $this->programId = $programId;
         $this->uploaderId = $uploaderId;
-        // Cache lists for speed
+        
         $this->provinces = Province::pluck('id', 'name')->toArray();
-        $this->regions = Region::pluck('id', 'name')->toArray();
+        try {
+            $this->regions = Region::pluck('id', 'name')->toArray(); 
+        } catch (\Exception $e) {
+            $this->regions = []; 
+        }
+
+        // --- PRE-FETCH PROGRAM IDs ---
+        // We try to find the IDs once during construction to make the import fast
+        try {
+            $tes = Program::where('name', 'like', '%TES%')->orWhere('code', 'TES')->first();
+            $this->tesProgramId = $tes ? $tes->id : null;
+
+            $tdp = Program::where('name', 'like', '%TDP%')->orWhere('code', 'TDP')->first();
+            $this->tdpProgramId = $tdp ? $tdp->id : null;
+        } catch (\Exception $e) {
+            // Fallback if Program model issues exist
+            Log::error("Program Lookup Error: " . $e->getMessage());
+        }
     }
 
     public function headingRow(): int
@@ -55,13 +78,13 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
         $seq = trim($row['seq']);
 
         // 2. HEI LINKING
-        $hei = HEI::firstOrCreate(
-            ['hei_code' => $row['hei_uii']],
-            [
-                'hei_name' => $row['hei_name'] ?? 'Unknown HEI',
-                'hei_type' => $row['type_of_hei'] ?? null,
-            ]
-        );
+        $hei = HEI::where('hei_code', $row['hei_uii'] ?? '')->first();
+        if (!$hei && !empty($row['hei_name'])) {
+            $hei = HEI::firstOrCreate(
+                ['hei_name' => $row['hei_name']],
+                ['hei_code' => $row['hei_uii'] ?? null, 'type_of_heis' => $row['type_of_hei'] ?? null]
+            );
+        }
 
         // 3. SCHOLAR CREATION
         $scholar = Scholar::updateOrCreate(
@@ -74,15 +97,17 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
                 'sex'           => $this->transformSex($row['gender'] ?? $row['sex'] ?? null),
                 'birthdate'     => isset($row['birthdate']) ? $this->transformDate($row['birthdate']) : null,
                 'email_address' => $row['email'] ?? $row['email_address'] ?? null,
-                'contact_no'    => $row['contact_no'] ?? $row['contact_number'] ?? null,
+                'contact_no'    => substr($row['contact_no'] ?? $row['contact_number'] ?? '', 0, 20),
             ]
         );
 
-        // 4. PROCESS ADDRESS (Barangay Creation Logic Included)
-        $this->processAddress($scholar, $row);
+        // --- CAPTURE REPRESENTATIVE ---
+        $representative = $row['representative'] ?? $row['endorsed_by'] ?? $row['congressman'] ?? null;
 
-        // 5. LOOKUPS (Academic Year & Semester)
-        // FORCE CREATE if missing to ensure ID is never null
+        // 4. PROCESS ADDRESS (Updates District Representative)
+        $this->processAddress($scholar, $row, $representative);
+
+        // 5. LOOKUPS
         $acadYearId = null;
         if (isset($row['academic_year'])) {
             $ay = AcademicYear::firstOrCreate(['name' => trim($row['academic_year'])]);
@@ -95,50 +120,66 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
             $semesterId = $sem->id;
         }
 
-        // 6. ENROLLMENT
+        // 6. ENROLLMENT & PROGRAM DETECTION
+        $appNo = $row['application_number'] ?? $row['app_no'] ?? $row['application_no'] ?? null;
+        $awardNo = $row['award_number'] ?? $row['award_no'] ?? null;
+
+        // --- NEW LOGIC START: DETECT PROGRAM TYPE ---
+        $detectedProgramId = $this->programId; // Default to the one passed in MasterlistImport
+
+        if ($awardNo) {
+            $prefix = strtoupper(substr($awardNo, 0, 4)); // Get first 4 chars
+            
+            if ($prefix === 'TES-' && $this->tesProgramId) {
+                $detectedProgramId = $this->tesProgramId;
+            } elseif ($prefix === 'TDP-' && $this->tdpProgramId) {
+                $detectedProgramId = $this->tdpProgramId;
+            }
+        }
+        // --- NEW LOGIC END ---
+
         $enrollment = ScholarEnrollment::firstOrCreate(
             [
                 'scholar_id' => $scholar->id,
-                'program_id' => $this->programId,
+                'program_id' => $detectedProgramId, // Use the detected ID here
             ],
             [
-                'hei_id' => $hei->id,
-                'award_number' => $row['award_number'] ?? $row['award_no'] ?? null,
+                'hei_id' => $hei ? $hei->id : null,
                 'status' => 'Enrolled',
-                'academic_year_applied_id' => $acadYearId 
+                'award_number' => $awardNo,
+                'academic_year_applied_id' => $acadYearId,
+                'application_number' => $appNo, 
             ]
         );
+
+        $enrollment->update([
+            'application_number' => $appNo, 
+            'award_number' => $awardNo ?? $enrollment->award_number,
+            'academic_year_applied_id' => $acadYearId ?? $enrollment->academic_year_applied_id
+        ]);
 
         // 7. COURSE & MAJOR
         $courseId = null;
         $majorId = null;
         
-        $degreeString = $row['degree_program'] ?? $row['course'] ?? 'Unspecified';
+        $degreeString = $row['degree_program'] ?? $row['course'] ?? null;
+        if ($degreeString) {
+            $parts = preg_split('/ MAJOR IN /i', $degreeString);
+            $courseName = trim($parts[0]);
 
-        // Split string: "BS Nursing MAJOR IN Biology" -> ["BS Nursing", "Biology"]
-        $parts = preg_split('/ MAJOR IN /i', $degreeString);
-        $courseName = trim($parts[0]);
+            $course = Course::firstOrCreate(['course_name' => $courseName]);
+            $courseId = $course->id;
 
-        // A. Handle Course
-        $course = Course::firstOrCreate(['course_name' => $courseName]);
-        $courseId = $course->id;
-
-        // B. Handle Major (Smart Search)
-        if (isset($parts[1])) {
-            $majorName = trim($parts[1]);
-            // Use LIKE for case-insensitive matching (e.g. "Math" matches "MATH")
-            $major = Major::where('major_name', 'LIKE', $majorName)->first();
-            
-            // Only set ID if found. We respect your rule "Don't Create Majors",
-            // but the LIKE search solves the "NULL because of capitalization" issue.
-            if ($major) {
+            if (isset($parts[1])) {
+                $majorName = trim($parts[1]);
+                $major = Major::firstOrCreate(['major_name' => $majorName]); 
                 $majorId = $major->id;
-            } else {
-                Log::warning("Major not found for: {$majorName}");
             }
         }
 
         // 8. ACADEMIC RECORD
+        $validationStatus = $row['validation_status'] ?? $row['for_validation'] ?? $row['status_of_validation'] ?? null;
+
         $record = AcademicRecord::updateOrCreate(
             ['scholar_enrollment_id' => $enrollment->id, 'seq' => $seq],
             [
@@ -147,25 +188,22 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
                 'academic_year_id' => $acadYearId, 
                 'semester_id' => $semesterId,    
                 'year_level' => $row['year_level'] ?? null,
-                'hei_id' => $hei->id,
+                'hei_id' => $hei ? $hei->id : null,
                 'batch_no' => $row['award_batch'] ?? $row['batch'] ?? 1,
                 'grant_amount' => $row['billing_ammount'] ?? $row['amount_due'] ?? null, 
                 'payment_status' => $row['status'] ?? $row['remarks'] ?? null,
-                'validation_status' => $row['for_validation'] ?? null,
+                'validation_status' => $validationStatus,
             ]
         );
 
         // 9. BILLING RECORD
         $amount = $row['billing_ammount'] ?? $row['billing_amount'] ?? $row['amount_due'] ?? null;
-        
-        // Check for validator user
         $validatorId = null;
-        $remarks = $row['remarks'] ?? null;
-        if (!empty($row['validated_by']) && $row['validated_by'] !== '-') {
-            $user = User::where('name', 'like', '%' . $row['validated_by'] . '%')->first();
-            if ($user) {
-                $validatorId = $user->id;
-            }
+        $validatorName = $row['validated_by'] ?? null;
+        
+        if (!empty($validatorName) && $validatorName !== '-') {
+            $user = User::where('name', 'like', '%' . $validatorName . '%')->first();
+            if ($user) $validatorId = $user->id;
         }
 
         BillingRecord::updateOrCreate(
@@ -173,10 +211,8 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
             [
                 'billing_amount' => $amount,
                 'status' => $row['status'] ?? 'Processed',
-                'remarks' => $remarks,
+                'remarks' => $row['remarks'] ?? null,
                 'validated_by_user_id' => $validatorId,
-
-                // Mapping Dates (Not NULL if data exists)
                 'date_fund_request' => $this->transformDate($row['date_of_fund_request'] ?? null),
                 'date_sub_aro' => $this->transformDate($row['date_of_sub_aro'] ?? null),
                 'date_nta' => $this->transformDate($row['date_of_nta'] ?? null),
@@ -205,20 +241,31 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
         return in_array($clean, ['M', 'F']) ? $clean : null;
     }
 
-    private function processAddress($scholar, $row)
+    private function processAddress($scholar, $row, $representative)
     {
+        // 1. Region
         $regionName = trim($row['region'] ?? '');
-        $regionId = $this->regions[$regionName] ?? Region::firstOrCreate(['name' => $regionName])->id;
-
-        $provName = trim($row['province'] ?? '');
-        $provinceId = null;
-        if (!empty($provName)) {
-            $provinceId = $this->provinces[$provName] ?? Province::firstOrCreate(['name' => $provName], ['region_id' => $regionId])->id;
+        $regionId = null;
+        if($regionName) {
+            $reg = Region::firstOrCreate(['name' => $regionName]);
+            $regionId = $reg->id;
         }
 
-        $cityName = trim($row['citymunicipality'] ?? $row['city_municipality'] ?? '');
+        // 2. Province
+        $provName = trim($row['province'] ?? '');
+        $provinceId = null;
+        if ($provName) {
+            $prov = Province::firstOrCreate(
+                ['name' => $provName],
+                ['region_id' => $regionId]
+            );
+            $provinceId = $prov->id;
+        }
+
+        // 3. City
+        $cityName = trim($row['citymunicipality'] ?? $row['city_municipality'] ?? $row['town_city'] ?? '');
         $cityId = null;
-        if (!empty($cityName) && $provinceId) {
+        if ($cityName && $provinceId) {
             $city = City::firstOrCreate(
                 ['name' => $cityName, 'province_id' => $provinceId], 
                 ['name' => $cityName]
@@ -226,31 +273,33 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
             $cityId = $city->id;
         }
 
-        // District Logic
-        $districtStr = trim($row['district'] ?? '');
+        // 4. District
+       $districtStr = trim($row['district'] ?? '');
         $districtId = null;
-        if (!empty($districtStr) && $provinceId) {
-            // Create if matches
-            $district = District::firstOrCreate(
-                ['name' => $districtStr, 'province_id' => $provinceId],
-                ['name' => $districtStr]
-            );
+        if ($districtStr && $provinceId) {
+            $district = District::firstOrCreate(['name' => $districtStr, 'province_id' => $provinceId], ['name' => $districtStr]);
+            
+            // STRICT CHECK: Only update if Representative is NOT NULL and NOT EMPTY string
+            if (!is_null($representative) && $representative !== '') {
+                $district->update(['representative' => $representative]);
+            }
             $districtId = $district->id;
         }
 
-        // --- BARANGAY LOGIC (Create New if Not Found) ---
+        // 5. Barangay
         $brgyName = trim($row['barangay'] ?? '');
         $brgyId = null;
 
         if (!empty($brgyName) && $cityId) {
+            // Uses 'barangay' column name per your DB structure
             $barangay = Barangay::firstOrCreate(
-                ['barangay' => $brgyName, 'cityID' => $cityId], // Search criteria
-                ['barangay' => $brgyName]                       // Creation values
+                ['barangay' => $brgyName, 'cityID' => $cityId], 
+                ['barangay' => $brgyName] 
             );
-            $brgyId = $barangay->barangayID;
+            $brgyId = $barangay->barangayID; 
         }
-        // ------------------------------------------------
 
+        // --- B. SAVE ADDRESS ---
         Address::updateOrCreate(
             ['scholar_id' => $scholar->id],
             [
@@ -258,13 +307,15 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
                 'province_id' => $provinceId,
                 'city_id' => $cityId,
                 'district_id' => $districtId,
-                'barangay_id' => $brgyId, // Will NOT be null now if name existed in Excel
+                'barangay_id' => $brgyId, 
                 
+                // Fallback Text
                 'region' => $regionName,
                 'province' => $provName,
                 'town_city' => $cityName,
                 'congressional_district' => $districtStr,
-                'barangay' => $brgyName,
+                'barangay' => $brgyName, 
+                
                 'zip_code' => $row['zip_code'] ?? null,
                 'specific_address' => $row['specific_address'] ?? $row['street'] ?? null,
             ]

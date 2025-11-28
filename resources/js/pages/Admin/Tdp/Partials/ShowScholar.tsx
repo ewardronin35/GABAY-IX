@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { route } from 'ziggy-js';
 import { Badge } from '@/components/ui/badge';
-
+import { ScholarRequirements } from "./ScholarRequirements";
 // Define a more specific type for the page prop
 type ShowScholarProps = PageProps & {
     scholar: Scholar & {
@@ -42,7 +42,8 @@ export default function ShowScholar({ auth, scholar }: ShowScholarProps) {
         given_name, family_name, middle_name, extension_name,
         sex, contact_no, email_address, address, enrollments
     } = scholar;
-    
+    const requirements = {}; // e.g., { coe: '/path/to/coe.pdf', id_picture: null }
+    const validationStatus = tdpEnrollment?.academic_records?.[0]?.validation_status || 'Pending';
     const tdpEnrollment = enrollments?.[0];
     
     // --- THIS IS THE FIX ---

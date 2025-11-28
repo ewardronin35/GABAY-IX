@@ -11,6 +11,11 @@ use App\Models\AcademicYear; // NEW
 use App\Models\Semester;
 use App\Models\BillingRecord;   
 // Keep these
+use App\Models\Province;
+use App\Models\City;
+use App\Models\District;
+use App\Models\Region;
+use App\Models\Barangay;
 use App\Models\HEI;
 use App\Models\Course;
 use Illuminate\Http\Request;
@@ -29,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
 
 class TdpController extends Controller
@@ -62,11 +68,13 @@ class TdpController extends Controller
             ->pluck('name')->toArray();
         // --- END OF FIX ---
     }
-   public function getTdpQuery(Request $request, string $searchKey = 'search'): Builder
+public function getTdpQuery(Request $request, string $searchKey = 'search'): Builder
     {
-        $query = AcademicRecord::with([
+       $query = AcademicRecord::with([
             'enrollment.scholar.address.city',     
-        'enrollment.scholar.address.barangay',
+            'enrollment.scholar.address.district', 
+            // FIX: Re-enable this so we can get the relationship data
+            'enrollment.scholar.address.barangay', 
             'enrollment.scholar.address', 
             'enrollment.program',       
             'hei.province',             
@@ -196,7 +204,10 @@ public function index(Request $request): Response
             ->values();
 
         // 5. FETCH GRID DATA
-        $databaseEnrollments = $this->getTdpQuery($request, 'search_db')->paginate(10, ['*'], 'db_page')->withQueryString();
+      $databaseEnrollments = $this->getTdpQuery($request, 'search_db')->paginate(10, ['*'], 'db_page')->withQueryString();
+        
+      
+
         $masterlistEnrollments = $this->getTdpQuery($request, 'search_ml')->paginate(10, ['*'], 'ml_page')->withQueryString();
         
         // HEI Tab Data
@@ -239,228 +250,276 @@ public function index(Request $request): Response
             ]
         ]);
     }
-
+public function bulkUpdate(Request $request): RedirectResponse
+{
+    // 1. CLEAN THE DATA
+    $cleanedData = [];
     
- public function bulkUpdate(Request $request): RedirectResponse
-    {
-        // 1. CLEAN THE DATA
-        $cleanedData = [];
-        
-        if (!$request->has('enrollments') || !is_array($request->enrollments)) {
-            return redirect()->back()->withErrors(['enrollments' => 'No data provided for update.']);
+    if (!$request->has('enrollments') || !is_array($request->enrollments)) {
+        return redirect()->back()->withErrors(['enrollments' => 'No data provided for update.']);
+    }
+
+    foreach ($request->enrollments as $row) {
+        $cleanedRow = $row;
+
+        // Normalize Sex
+        if (isset($cleanedRow['sex'])) {
+            $sex = strtolower(trim($cleanedRow['sex']));
+            if ($sex === 'male' || $sex === 'm') $cleanedRow['sex'] = 'M';
+            elseif ($sex === 'female' || $sex === 'f') $cleanedRow['sex'] = 'F';
         }
 
-        foreach ($request->enrollments as $row) {
-            $cleanedRow = $row;
-
-            // Normalize Sex
-            if (isset($cleanedRow['sex'])) {
-                if (strtolower($cleanedRow['sex']) === 'male') $cleanedRow['sex'] = 'M';
-                if (strtolower($cleanedRow['sex']) === 'female') $cleanedRow['sex'] = 'F';
+        // Clean string values
+        foreach ($cleanedRow as $key => $value) {
+            if (is_string($value)) {
+                $value = trim($value);
+                if ($value === '') $value = null;
             }
+            $cleanedRow[$key] = $value;
+        }
 
-            // Clean string values
-            foreach ($cleanedRow as $key => $value) {
-                if (is_string($value)) {
-                    $value = trim($value);
-                    if ($value === '') {
-                        $value = null;
-                    }
+        // Force truncate contact number
+        if (!empty($cleanedRow['contact_no'])) {
+            $cleanedRow['contact_no'] = substr($cleanedRow['contact_no'], 0, 20);
+        }
+
+        $cleanedData[] = $cleanedRow;
+    }
+
+    // 2. VALIDATE (Simplified for speed)
+    $validator = Validator::make(['enrollments' => $cleanedData], [
+        'enrollments' => 'required|array',
+        'enrollments.*.scholar_id' => 'nullable|integer|exists:scholars,id',
+        'enrollments.*.family_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
+        'enrollments.*.given_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
+    ]);
+
+    if ($validator->fails()) {
+        Log::warning('Bulk update validation failed', $validator->errors()->toArray());
+        return redirect()->back()->withErrors($validator->errors());
+    }
+
+    // 3. PROCESS UPSERT
+    try {
+        DB::transaction(function () use ($cleanedData) {
+            foreach ($cleanedData as $row) {
+                
+                // Defaults
+                $defaults = [
+                    'family_name' => null, 'given_name' => null, 'middle_name' => null, 'extension_name' => null,
+                    'sex' => null, 'contact_no' => null, 'email_address' => null,
+                    'province' => null, 'city_municipality' => null, 'district' => null, 'zip_code' => null,
+                    'specific_address' => null, 'barangay' => null, 'award_no' => null, 'seq' => null,
+                    'app_no' => null, 'year_level' => null, 'batch' => null, 'validation_status' => null,
+                    'date_paid' => null, 'tdp_grant' => null, 'endorsed_by' => null,
+                    'billing_amount' => null, 'billing_status' => null, 'date_fund_request' => null,
+                    'date_sub_aro' => null, 'date_nta' => null, 'date_disbursed_to_hei' => null,
+                    // Keys for ID Lookup
+                    'hei_name' => null, 'hei_uii' => null, 'course_name' => null, 
+                    'semester' => null, 'academic_year' => null, 'region' => null
+                ];
+                $safeRow = array_merge($defaults, $row);
+                
+                $parseDate = fn($d) => $d ? Carbon::parse($d)->format('Y-m-d') : null;
+
+                // --- A. LOOKUP LOCATION IDs (Fix for "Region/Province/City/Brgy doesn't display") ---
+                $regionId = null;
+                if (!empty($safeRow['region'])) {
+                    $reg = Region::where('name', 'LIKE', "%{$safeRow['region']}%")->first();
+                    if ($reg) $regionId = $reg->id;
                 }
-                $cleanedRow[$key] = $value;
-            }
 
-            // FIX 1: Force truncate contact number to prevent "greater than 20 chars" error
-            if (!empty($cleanedRow['contact_no'])) {
-                $cleanedRow['contact_no'] = substr($cleanedRow['contact_no'], 0, 20);
-            }
+                $provinceId = null;
+                if (!empty($safeRow['province'])) {
+                    $prov = Province::where('name', 'LIKE', "%{$safeRow['province']}%")->first();
+                    if ($prov) $provinceId = $prov->id;
+                }
 
-            $cleanedData[] = $cleanedRow;
-        }
+                $cityId = null;
+                if (!empty($safeRow['city_municipality'])) {
+                    $city = City::where('name', 'LIKE', "%{$safeRow['city_municipality']}%")->first();
+                    if ($city) $cityId = $city->id;
+                }
 
-        // 2. VALIDATE
-        $validator = Validator::make(['enrollments' => $cleanedData], [
-            'enrollments' => 'required|array',
-            // Allow null IDs for new records
-            'enrollments.*.academic_record_id' => 'nullable|integer|exists:academic_records,id',
-            'enrollments.*.scholar_id' => 'nullable|integer|exists:scholars,id',
-            
-            // FIX 2: Match the column names sent by frontend (family_name/given_name)
-            // Previous code used 'last_name'/'first_name' which caused the "field is required" error
-            'enrollments.*.family_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
-            'enrollments.*.given_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
-            
-            'enrollments.*.contact_no' => 'nullable|string|max:20',
-            'enrollments.*.email_address' => 'nullable|email|max:255',
-            
-            // Allow numeric or string for grant/year
-            'enrollments.*.tdp_grant' => 'nullable', 
-            'enrollments.*.year_level' => 'nullable', 
-            
-            // Other fields
-            'enrollments.*.province' => 'nullable|string|max:255',
-            'enrollments.*.city_municipality' => 'nullable|string|max:255',
-            'enrollments.*.district' => 'nullable|string|max:255',
-            'enrollments.*.zip_code' => 'nullable|string|max:10',
-            'enrollments.*.specific_address' => 'nullable|string|max:255',
-            'enrollments.*.barangay' => 'nullable|string|max:255',
-            'enrollments.*.award_no' => 'nullable|string|max:255',
-            'enrollments.*.seq' => 'nullable|string|max:255',
-            'enrollments.*.app_no' => 'nullable|string|max:255',
-            'enrollments.*.batch' => 'nullable|string|max:255',
-            'enrollments.*.validation_status' => 'nullable|string|max:255',
-            'enrollments.*.date_paid' => 'nullable|date',
-            'enrollments.*.endorsed_by' => 'nullable|string|max:255',
-            'enrollments.*.billing_amount' => 'nullable|numeric',
-            'enrollments.*.billing_status' => 'nullable|string|max:255',
-            'enrollments.*.date_fund_request' => 'nullable|date',
-            'enrollments.*.date_sub_aro' => 'nullable|date',
-            'enrollments.*.date_nta' => 'nullable|date',
-            'enrollments.*.date_disbursed_to_hei' => 'nullable|date',
-        ]);
+                $districtId = null;
+                if (!empty($safeRow['district'])) {
+                    // Try finding district by name
+                    $dist = District::where('name', 'LIKE', "%{$safeRow['district']}%")->first();
+                    if ($dist) $districtId = $dist->id;
+                }
 
-        if ($validator->fails()) {
-            // Only log, don't crash
-            Log::warning('Bulk update validation failed', $validator->errors()->toArray());
-            return redirect()->back()->withErrors($validator->errors());
-        }
-
-        // 3. PROCESS UPSERT
-        try {
-            DB::transaction(function () use ($cleanedData) {
-                foreach ($cleanedData as $row) {
+                $barangayId = null;
+                if (!empty($safeRow['barangay'])) {
+                    // Best effort: Find barangay. If city is known, use it to narrow down.
+                    $bQuery = Barangay::where('barangay', 'LIKE', "%{$safeRow['barangay']}%");
+                    if ($cityId) $bQuery->where('cityID', $cityId);
+                    $brgy = $bQuery->first();
                     
-                    // Defaults for new records
-                    $defaults = [
-                        'family_name' => null, 'given_name' => null, 'middle_name' => null, 'extension_name' => null,
-                        'sex' => null, 'contact_no' => null, 'email_address' => null,
-                        'province' => null, 'city_municipality' => null, 'district' => null, 'zip_code' => null,
-                        'specific_address' => null, 'barangay' => null, 'award_no' => null, 'seq' => null,
-                        'app_no' => null, 'year_level' => null, 'batch' => null, 'validation_status' => null,
-                        'date_paid' => null, 'tdp_grant' => null, 'endorsed_by' => null,
-                        'billing_amount' => null, 'billing_status' => null, 'date_fund_request' => null,
-                        'date_sub_aro' => null, 'date_nta' => null, 'date_disbursed_to_hei' => null,
-                    ];
-                    $safeRow = array_merge($defaults, $row);
+                    // If we found one (or created one if you prefer), set ID
+                    if ($brgy) $barangayId = $brgy->id;
+                }
 
-                    // --- A. Handle Scholar ---
-                    if (!empty($safeRow['scholar_id'])) {
-                        $scholar = Scholar::find($safeRow['scholar_id']);
-                        if ($scholar) {
-                            $scholar->update([
-                                'family_name' => $safeRow['family_name'],
-                                'given_name' => $safeRow['given_name'],
-                                'middle_name' => $safeRow['middle_name'],
-                                'extension_name' => $safeRow['extension_name'],
-                                'sex' => $safeRow['sex'],
-                                'contact_no' => $safeRow['contact_no'],
-                                'email_address' => $safeRow['email_address'],
-                            ]);
-                        }
-                    } else {
-                        // Create New Scholar if names exist
-                        if ($safeRow['family_name'] && $safeRow['given_name']) {
-                            $scholar = Scholar::create([
-                                'family_name' => $safeRow['family_name'],
-                                'given_name' => $safeRow['given_name'],
-                                'middle_name' => $safeRow['middle_name'],
-                                'extension_name' => $safeRow['extension_name'],
-                                'sex' => $safeRow['sex'],
-                                'contact_no' => $safeRow['contact_no'],
-                                'email_address' => $safeRow['email_address'],
-                            ]);
-                        } else {
-                            continue; // Skip rows without names
-                        }
-                    }
-
-                    // Update Address
+                // --- B. Handle Scholar & Address ---
+                $scholar = null;
+                if (!empty($safeRow['scholar_id'])) {
+                    $scholar = Scholar::find($safeRow['scholar_id']);
                     if ($scholar) {
-                        $scholar->address()->updateOrCreate(
-                            ['scholar_id' => $scholar->id],
-                            [
-                                'province' => $safeRow['province'],
-                                'town_city' => $safeRow['city_municipality'],
-                                'congressional_district' => $safeRow['district'],
-                                'zip_code' => $safeRow['zip_code'],
-                                'specific_address' => $safeRow['specific_address'],
-                                'barangay' => $safeRow['barangay'],
-                            ]
-                        );
-                    }
-
-                    // --- B. Handle Enrollment ---
-                    // Simple logic: Find or Create enrollment for this program
-                    // Ideally we need HEI, but for bulk grid edit we might just default or skip if missing
-                    $enrollment = ScholarEnrollment::firstOrCreate(
-                        [
-                            'scholar_id' => $scholar->id,
-                            'program_id' => 4, // Hardcoded TDP Program ID
-                        ],
-                        [
-                            'status' => 'active',
-                            'award_number' => $safeRow['award_no'],
-                            'application_number' => $safeRow['app_no'],
-                        ]
-                    );
-                    
-                    // Update existing enrollment fields
-                    if (!$enrollment->wasRecentlyCreated) {
-                        $enrollment->update([
-                            'award_number' => $safeRow['award_no'],
-                            'application_number' => $safeRow['app_no'],
+                        $scholar->update([
+                            'family_name' => $safeRow['family_name'],
+                            'given_name' => $safeRow['given_name'],
+                            'middle_name' => $safeRow['middle_name'],
+                            'extension_name' => $safeRow['extension_name'],
+                            'sex' => $safeRow['sex'],
+                            'contact_no' => $safeRow['contact_no'],
+                            'email_address' => $safeRow['email_address'],
                         ]);
                     }
-
-                    // --- C. Handle Academic Record ---
-                    $academicRecord = null;
-                    if (!empty($safeRow['academic_record_id'])) {
-                        $academicRecord = AcademicRecord::find($safeRow['academic_record_id']);
-                    }
-
-                    $recordData = [
-                        'seq' => $safeRow['seq'],
-                        'year_level' => $safeRow['year_level'],
-                        'batch_no' => $safeRow['batch'],
-                        'payment_status' => $safeRow['validation_status'],
-                        'disbursement_date' => $safeRow['date_paid'],
-                        'grant_amount' => $safeRow['tdp_grant'],
-                    ];
-
-                    if ($academicRecord) {
-                        $academicRecord->update($recordData);
+                } else {
+                    if ($safeRow['family_name'] && $safeRow['given_name']) {
+                        $scholar = Scholar::create([
+                            'family_name' => $safeRow['family_name'],
+                            'given_name' => $safeRow['given_name'],
+                            'middle_name' => $safeRow['middle_name'],
+                            'extension_name' => $safeRow['extension_name'],
+                            'sex' => $safeRow['sex'],
+                            'contact_no' => $safeRow['contact_no'],
+                            'email_address' => $safeRow['email_address'],
+                        ]);
                     } else {
-                        // Create new record attached to enrollment
-                        // Defaulting HEI/Course/AY/Sem if missing is complex,
-                        // so we create a basic record.
-                        $academicRecord = AcademicRecord::create(array_merge($recordData, [
-                            'scholar_enrollment_id' => $enrollment->id,
-                            // You might want to set defaults for: academic_year_id, semester_id, etc.
-                        ]));
+                        continue; 
                     }
+                }
 
-                    // --- D. Handle Billing Record ---
-                    $academicRecord->billingRecord()->updateOrCreate(
-                        ['academic_record_id' => $academicRecord->id],
+                if ($scholar) {
+                    // Save IDs AND Text
+                    $scholar->address()->updateOrCreate(
+                        ['scholar_id' => $scholar->id],
                         [
-                            'billing_amount' => $safeRow['billing_amount'],
-                            'status' => $safeRow['billing_status'],
-                            'date_fund_request' => $safeRow['date_fund_request'],
-                            'date_sub_aro' => $safeRow['date_sub_aro'],
-                            'date_nta' => $safeRow['date_nta'],
-                            'date_disbursed_hei' => $safeRow['date_disbursed_to_hei'],
+                            'region_id' => $regionId,
+                            'province_id' => $provinceId,
+                            'city_id' => $cityId,
+                            'district_id' => $districtId,
+                            'barangay_id' => $barangayId,
+                            
+                            // Fallback text values
+                            'region' => $safeRow['region'],
+                            'province' => $safeRow['province'],
+                            'town_city' => $safeRow['city_municipality'],
+                            'congressional_district' => $safeRow['district'],
+                            'barangay' => $safeRow['barangay'],
+                            'zip_code' => $safeRow['zip_code'],
+                            'specific_address' => $safeRow['specific_address'],
                         ]
                     );
                 }
-            });
 
-            return redirect()->back()->with('success', 'Masterlist updated successfully!');
+                // --- C. Handle Enrollment (Fix for "Academic Year Applied" & "App No") ---
+                
+                // 1. Lookup Academic Year ID
+                $ayAppliedId = null;
+                if (!empty($safeRow['academic_year'])) {
+                    $ay = AcademicYear::where('name', $safeRow['academic_year'])->first();
+                    if ($ay) $ayAppliedId = $ay->id;
+                }
 
-        } catch (\Exception $e) {
-            Log::error('Bulk Update Transaction Error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to update records. Please check logs.');
-        }
+                // 2. Create/Update Enrollment
+                $enrollment = ScholarEnrollment::firstOrCreate(
+                    ['scholar_id' => $scholar->id, 'program_id' => 4], // 4 = TDP
+                    [
+                        'status' => 'active', 
+                        'award_number' => $safeRow['award_no'], 
+                        'application_number' => $safeRow['app_no'], // Fix: Save App No
+                        'academic_year_applied_id' => $ayAppliedId // Fix: Save AY Applied ID
+                    ]
+                );
+                
+                if (!$enrollment->wasRecentlyCreated) {
+                    $enrollment->update([
+                        'award_number' => $safeRow['award_no'],
+                        'application_number' => $safeRow['app_no'], // Fix: Update App No
+                        'academic_year_applied_id' => $ayAppliedId // Fix: Update AY ID
+                    ]);
+                }
+
+                // --- D. Lookup & Save Academic Record (HEI/Course/Sem/etc) ---
+                
+                // HEI Lookup
+                $heiId = null;
+                if (!empty($safeRow['hei_uii'])) {
+                    $hei = \App\Models\HEI::where('hei_code', $safeRow['hei_uii'])->first();
+                    if ($hei) $heiId = $hei->id;
+                }
+                if (!$heiId && !empty($safeRow['hei_name'])) {
+                    $hei = \App\Models\HEI::where('hei_name', $safeRow['hei_name'])->first();
+                    if ($hei) $heiId = $hei->id;
+                }
+
+                // Course Lookup
+                $courseId = null;
+                if (!empty($safeRow['course_name'])) {
+                    $course = \App\Models\Course::where('course_name', $safeRow['course_name'])->first();
+                    if ($course) $courseId = $course->id;
+                }
+
+                // Semester Lookup
+                $semesterId = null;
+                if (!empty($safeRow['semester'])) {
+                    $sem = \App\Models\Semester::where('name', $safeRow['semester'])->first();
+                    if ($sem) $semesterId = $sem->id;
+                }
+
+                // Academic Year Lookup (Record Level)
+                $academicYearId = $ayAppliedId; // Usually same as applied, or lookup again if row differs
+
+                $academicRecord = null;
+                if (!empty($safeRow['academic_record_id'])) {
+                    $academicRecord = AcademicRecord::find($safeRow['academic_record_id']);
+                }
+
+                $recordData = [
+                    'seq' => $safeRow['seq'],
+                    'year_level' => $safeRow['year_level'],
+                    'batch_no' => $safeRow['batch'],
+                    'payment_status' => $safeRow['validation_status'],
+                    'disbursement_date' => $parseDate($safeRow['date_paid']), 
+                    'grant_amount' => $safeRow['tdp_grant'],
+                    'hei_id' => $heiId,
+                    'course_id' => $courseId,
+                    'semester_id' => $semesterId,
+                    'academic_year_id' => $academicYearId,
+                ];
+
+                if ($academicRecord) {
+                    $academicRecord->update($recordData);
+                } else {
+                    $academicRecord = AcademicRecord::create(array_merge($recordData, [
+                        'scholar_enrollment_id' => $enrollment->id,
+                    ]));
+                }
+
+                // --- E. Handle Billing Record ---
+                $academicRecord->billingRecord()->updateOrCreate(
+                    ['academic_record_id' => $academicRecord->id],
+                    [
+                        'billing_amount' => $safeRow['billing_amount'],
+                        'status' => $safeRow['billing_status'],
+                        'date_fund_request' => $parseDate($safeRow['date_fund_request']),
+                        'date_sub_aro' => $parseDate($safeRow['date_sub_aro']),
+                        'date_nta' => $parseDate($safeRow['date_nta']),
+                        'date_disbursed_hei' => $parseDate($safeRow['date_disbursed_to_hei']),
+                        'date_disbursed_grantee' => $parseDate($safeRow['date_paid']),
+                    ]
+                );
+            }
+        });
+
+        return redirect()->back()->with('success', 'Masterlist updated successfully!');
+
+    } catch (\Exception $e) {
+        Log::error('Bulk Update Transaction Error: ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Failed to update records: ' . $e->getMessage());
     }
+}
     /**
      * Bulk destroy TDP records.
      * Deletes Academic Records based on IDs passed.

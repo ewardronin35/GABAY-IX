@@ -24,6 +24,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// Register modules ONCE outside component to prevent re-registration lag
 registerAllModules();
 
 // --- 1. HELPER: DATA MAPPING ---
@@ -34,10 +35,11 @@ const mapDataToGrid = (records: any[]) => {
         const enrollment = record.enrollment || {};
         const scholar = enrollment.scholar || {};
         const address = scholar.address || {};
+
         const hei = record.hei || {};
         const billing = record.billing_record || record.billingRecord || {};
         const validatedByUser = billing.validated_by || billing.validatedBy || {};
-        
+        const districtObj = address.district || {};
         const addrCityObj = address.city || {}; 
         const addrBrgyObj = address.barangay || {};
         const heiCityObj = hei.city || {};
@@ -54,7 +56,7 @@ const mapDataToGrid = (records: any[]) => {
             award_no: enrollment.award_number || '',
             
             // HEI Data
-                 hei_uii: hei.uii || hei.hei_code || '', 
+            hei_uii: hei.uii || hei.hei_code || '', 
             hei_name: hei.hei_name || '',
             hei_type: hei.type_of_heis || '', 
             hei_city: heiCityObj.name || hei.city_municipality || '', 
@@ -73,7 +75,7 @@ const mapDataToGrid = (records: any[]) => {
             
             // Address Data
             specific_address: address.specific_address || '',
-            barangay: addrBrgyObj.name || addrBrgyObj.barangay_name || address.barangay || '', 
+            barangay: address.barangay_text || addrBrgyObj?.barangay || addrBrgyObj?.name || address.barangay || '',
             city_municipality: addrCityObj.name || addrCityObj.city_name || address.town_city || '',
             province: address.province || '',
             district: address.congressional_district || '',
@@ -88,7 +90,7 @@ const mapDataToGrid = (records: any[]) => {
             
             // Status
             validation_status: record.payment_status || '',
-            endorsed_by: record.endorsed_by || '', 
+           endorsed_by: record.endorsed_by || districtObj.representative || '',
             program_name: enrollment.program?.program_name || 'TDP',
             
             // Billing
@@ -108,7 +110,8 @@ const mapDataToGrid = (records: any[]) => {
     });
 };
 
-// --- 2. ISOLATED TABLE COMPONENT ---
+// --- 2. ISOLATED MEMOIZED TABLE COMPONENT ---
+// This prevents re-renders when the parent state (like the Formula Bar) changes
 const MemoizedHotTable = memo(({ data, columns, onSelection, onAfterChange, forwardRef }: any) => {
     return (
         <HotTable
@@ -118,27 +121,38 @@ const MemoizedHotTable = memo(({ data, columns, onSelection, onAfterChange, forw
             colHeaders={columns.map((c: any) => c.title)}
             rowHeaders={true}
             width="100%"
-            height="600px" 
-            minSpareRows={1} 
-            licenseKey="non-commercial-and-evaluation"
-            fixedColumnsStart={4}
-            manualColumnResize={true}
-            manualRowResize={true}
-            autoRowSize={false} 
-            autoColumnSize={false} 
-            renderAllRows={false}
-            viewportRowRenderingOffset={20}
+            height="600px"
+            
+            // Performance Settings
+            renderAllRows={false} // CRITICAL for large data
+            viewportRowRenderingOffset={50} // Pre-load rows for smoother scrolling
+            autoRowSize={false} // CRITICAL for performance
+            autoColumnSize={false} // CRITICAL for performance
+            minSpareRows={1}
+            
+            // Interactions
             dropdownMenu={true}
+            contextMenu={['copy', 'cut', 'paste', '---------', 'row_above', 'row_below', 'remove_row', 'undo', 'redo']}
+            copyPaste={true}
             filters={true}
             search={true}
             selectionMode="multiple"
             outsideClickDeselects={false}
+            
+            // Event Handlers (Must be stable props!)
             afterSelectionEnd={onSelection} 
             afterChange={onAfterChange}
+            
+            licenseKey="non-commercial-and-evaluation"
             formulas={{ engine: HyperFormula }}
-            // Apply the Horizon theme class
             className="ht-theme-horizon"
         />
+    );
+}, (prevProps, nextProps) => {
+    // Custom comparison to be extra safe against re-renders
+    return (
+        prevProps.data === nextProps.data && 
+        prevProps.columns === nextProps.columns
     );
 });
 
@@ -166,107 +180,92 @@ export function TdpDatabaseGrid({
     const [activeCoords, setActiveCoords] = useState<{r: number, c: number} | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Memoize Data
+    // 1. Memoize Data (Stable Reference)
     const gridData = useMemo(() => mapDataToGrid(databaseData?.data || []), [databaseData?.data]);
     const paginationLinks = databaseData?.meta?.links || [];
 
-    // --- THEME EFFECT (Enforce Horizon) ---
-    useEffect(() => {
-        if (hotRef.current?.hotInstance) {
-            // @ts-ignore - useTheme is available in newer versions
-            if (typeof hotRef.current.hotInstance.useTheme === 'function') {
-                // @ts-ignore
-                hotRef.current.hotInstance.useTheme('ht-theme-horizon');
-            }
-        }
-    }, []);
-
-    // Search Effect
-    useEffect(() => {
-        const hot = hotRef.current?.hotInstance;
-        if (hot) {
-            const searchPlugin = hot.getPlugin('search');
-            searchPlugin.query(searchQuery);
-            hot.render();
-        }
-    }, [searchQuery]);
-
-    // --- COLUMN DEFINITIONS (Requested Array) ---
+    // 2. Memoize Columns (Stable Reference)
     const columns = useMemo(() => [
         { data: 'seq', title: 'SEQ', width: 50 },
         { data: 'region', title: 'Region' },
         { data: 'semester', title: 'Semester', },
         { data: 'academic_year', title: 'A.Y.', width: 100 },
-        
-         
         { data: 'hei_uii', title: 'HEI UII',  width: 100 }, 
         { data: 'hei_name', title: 'HEI Name',  width: 200 },
         { data: 'hei_type', title: 'HEI Type',  width: 80 },
         { data: 'hei_city', title: 'HEI City', width: 120 },
         { data: 'hei_province', title: 'HEI Province', width: 120 },
         { data: 'hei_district', title: 'HEI District',  width: 100 },
-
         { data: 'app_no', title: 'App No.', width: 100 },
         { data: 'award_no', title: 'Award No.', width: 100 },
         { data: 'batch', title: 'Batch', width: 60 },
-
         { data: 'family_name', title: 'Last Name', width: 120 },
         { data: 'given_name', title: 'First Name', width: 120 },
         { data: 'middle_name', title: 'M.I.', width: 50 },
         { data: 'extension_name', title: 'Ext', width: 50 },
         { data: 'sex', title: 'Sex', width: 50, type: 'dropdown', source: ['M', 'F'] },
-
         { data: 'province', title: 'Province', width: 120 },
         { data: 'city_municipality', title: 'City/Mun', width: 120 },
         { data: 'district', title: 'District', width: 100 },
         { data: 'zip_code', title: 'Zip', width: 70 },
         { data: 'specific_address', title: 'Specific Addr', width: 180 },
         { data: 'barangay', title: 'Barangay', width: 120 },
-
         { data: 'email_address', title: 'Email', width: 180 },
         { data: 'contact_no', title: 'Contact', width: 100 },
-
         { data: 'course_name', title: 'Course',  width: 180 },
         { data: 'year_level', title: 'Year', width: 60 },
         { data: 'endorsed_by', title: 'Representative', width: 120 },
         { data: 'validation_status', title: 'Status (Pmt)', width: 100 },
         { data: 'program_name', title: 'Program',  width: 80 },
-
         { data: 'billing_status', title: 'Status Bill', width: 100 },
         { data: 'validated_by', title: 'Validated By', readOnly: true, width: 120 },
-        
         { data: 'date_fund_request', title: 'Fund Req', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 100 },
         { data: 'date_sub_aro', title: 'Sub-ARO', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 100 },
         { data: 'date_nta', title: 'NTA', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 100 },
         { data: 'date_disbursed_to_hei', title: 'Disb HEI', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 100 },
         { data: 'date_paid', title: 'Disb Grantee', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, width: 100 },
-
         { data: 'billing_amount', title: 'Billing Amt', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 100 },
         { data: 'tdp_grant', title: 'Grant Amt', type: 'numeric', numericFormat: { pattern: '0,0.00' }, width: 100 },
     ], []);
 
-    // --- HANDLERS ---
-
-    const handleSelection = (r: number, c: number, r2: number, c2: number) => {
+    // --- 3. STABLE EVENT HANDLERS (Fixes Lag) ---
+    
+    // useCallback prevents this function from being recreated on every render
+    // This stops the HotTable from re-initializing when you click a cell
+    const handleSelection = useCallback((r: number, c: number, r2: number, c2: number) => {
         const hot = hotRef.current?.hotInstance;
         if (!hot) return;
 
+        // Get value for formula bar
         const rawValue = hot.getSourceDataAtCell(r, c);
         setActiveCellVal(rawValue !== null && rawValue !== undefined ? String(rawValue) : '');
         setActiveCoords({ r, c });
 
+        // Calculate selected IDs for deletion
         const selectedRecordIds: number[] = [];
         const startRow = Math.min(r, r2);
         const endRow = Math.max(r, r2);
-        for (let i = startRow; i <= endRow; i++) {
-            const physicalRow = hot.toPhysicalRow(i);
-            const sourceData = hot.getSourceDataAtRow(physicalRow) as any;
-            if (sourceData && sourceData.academic_record_id) {
-                selectedRecordIds.push(sourceData.academic_record_id);
+        
+        // Optimizing loop to avoid checking every single row if selection is huge
+        if (endRow - startRow < 1000) {
+            for (let i = startRow; i <= endRow; i++) {
+                const physicalRow = hot.toPhysicalRow(i);
+                const sourceData = hot.getSourceDataAtRow(physicalRow) as any;
+                if (sourceData && sourceData.academic_record_id) {
+                    selectedRecordIds.push(sourceData.academic_record_id);
+                }
             }
+            setSelectedIds(selectedRecordIds);
         }
-        setSelectedIds(selectedRecordIds);
-    };
+    }, []); // Empty dependency array = function never changes reference
+
+    const handleAfterChange = useCallback((changes: any, source: any) => {
+        if (source !== 'loadData') {
+            setIsDirty(true);
+        }
+    }, []);
+
+    // --- OTHER HANDLERS ---
 
     const handleFormulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
@@ -276,34 +275,50 @@ export function TdpDatabaseGrid({
         }
     };
 
-    const handleAfterChange = (changes: any, source: any) => {
-        if (source !== 'loadData') setIsDirty(true);
-    };
-
-    const handleSave = useCallback(() => {
+   const handleSave = useCallback(() => {
         if (!hotRef.current?.hotInstance) return;
-        const rawData = hotRef.current.hotInstance.getSourceData();
+        
+        const hot = hotRef.current.hotInstance;
+        const rawData = hot.getSourceData();
 
         const cleanedData = rawData.filter((row: any) => {
-            const isExisting = row && row.academic_record_id && row.scholar_id;
-            const isNew = row && !row.academic_record_id && (row.family_name || row.last_name);
+            if (!row) return false;
+            
+            const isExisting = row.academic_record_id && row.scholar_id;
+            const hasName = (row.family_name && row.family_name.trim() !== '') || 
+                            (row.given_name && row.given_name.trim() !== '');
+                            
+            const isNew = !row.academic_record_id && hasName;
+
             if (isNew) {
-                 if (!row.family_name && row.last_name) row.family_name = row.last_name;
-                 if (!row.given_name && row.first_name) row.given_name = row.first_name;
-                 if (filters?.batch_no) row.batch = filters.batch_no;
-                 if (filters?.academic_year) row.academic_year = filters.academic_year;
-                 if (filters?.semester) {
+                 if (filters?.batch_no && !row.batch) row.batch = filters.batch_no;
+                 if (filters?.academic_year && !row.academic_year) row.academic_year = filters.academic_year;
+                 if (filters?.semester && !row.semester) {
                     const sem = semesters.find((s: any) => String(s.id) === filters.semester);
                     if(sem) row.semester = sem.name; 
                  }
             }
             return isExisting || isNew;
-        }).map((row: any) => ({
-            ...row,
-            contact_no: row.contact_no ? String(row.contact_no).substring(0, 20) : null,
-            tdp_grant: row.tdp_grant ? parseFloat(String(row.tdp_grant)) : null,
-            year_level: row.year_level ? String(row.year_level) : null,
-        }));
+        }).map((row: any) => {
+            // --- HELPER: CLEAN NUMBERS ---
+            // This removes commas (e.g. "10,000.00" -> "10000.00") so validation passes
+            const cleanNumber = (val: any) => {
+                if (val === null || val === undefined || val === '') return null;
+                const strVal = String(val).replace(/,/g, ''); 
+                return isNaN(Number(strVal)) ? null : parseFloat(strVal);
+            };
+
+            return {
+                ...row,
+                contact_no: row.contact_no ? String(row.contact_no).substring(0, 20) : null,
+                
+                // FIX: Clean both amount fields
+                tdp_grant: cleanNumber(row.tdp_grant),
+                billing_amount: cleanNumber(row.billing_amount),
+                
+                year_level: row.year_level ? String(row.year_level) : null,
+            };
+        });
 
         if (cleanedData.length === 0) {
             toast.warning("No valid data to save.");
@@ -313,18 +328,28 @@ export function TdpDatabaseGrid({
         setIsSaving(true);
         router.post(route('superadmin.tdp.bulk-update'), { enrollments: cleanedData }, {
             preserveScroll: true,
-            onSuccess: () => { toast.success('Saved successfully!'); setIsDirty(false); },
+            onSuccess: () => { 
+                toast.success('Saved successfully!'); 
+                setIsDirty(false); 
+            },
             onError: (err) => { 
-                const msg = err && typeof err === 'object' ? Object.values(err)[0] : 'Unknown error';
-                toast.error(`Update failed: ${msg}`); 
-                setIsSaving(false); 
+                // Improved Error Logging for Arrays
+                console.error("Save Error:", err);
+                const firstError = Object.values(err)[0];
+                toast.error(`Update failed: ${firstError}`); 
             },
             onFinish: () => setIsSaving(false),
         });
     }, [filters, semesters]);
 
     const handleDelete = () => {
-        if (selectedIds.length === 0 || !confirm(`Delete ${selectedIds.length} records?`)) return;
+        if (selectedIds.length === 0) {
+            toast.warning("No saved records selected for deletion.");
+            return;
+        }
+        
+        if (!confirm(`Delete ${selectedIds.length} records?`)) return;
+        
         setIsDeleting(true);
         router.post(route('superadmin.tdp.bulk-destroy'), { ids: selectedIds }, {
             preserveScroll: true,
@@ -348,6 +373,16 @@ export function TdpDatabaseGrid({
             preserveState: true, preserveScroll: true, only: ['databaseEnrollments', 'filters']
         });
     };
+
+    // Search Effect
+    useEffect(() => {
+        const hot = hotRef.current?.hotInstance;
+        if (hot) {
+            const searchPlugin = hot.getPlugin('search');
+            searchPlugin.query(searchQuery);
+            hot.render();
+        }
+    }, [searchQuery]);
 
     const renderSheetTabs = () => {
         let options: any[] = [];

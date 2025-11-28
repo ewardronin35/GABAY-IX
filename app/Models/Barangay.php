@@ -17,7 +17,7 @@ class Barangay extends Model
     protected $primaryKey = 'barangayID';
 
     // Define fillable fields based on your SQL
-    protected $fillable = ['barangayName', 'cityID'];
+    protected $fillable = ['barangay', 'cityID'];
     
     // A barangay belongs to one city
     public function city(): BelongsTo

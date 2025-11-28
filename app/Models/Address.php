@@ -63,6 +63,7 @@ class Address extends Model
 
     public function barangay(): BelongsTo
     {
-        return $this->belongsTo(Barangay::class);
+        // CRITICAL FIX: Specify 'barangay_id' (local key) and 'barangayID' (parent key on barangay table)
+        return $this->belongsTo(Barangay::class, 'barangay_id', 'barangayID');
     }
 }
