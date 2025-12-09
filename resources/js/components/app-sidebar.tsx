@@ -35,6 +35,7 @@ import {
     UserCheck,
     BarChart,
     Landmark,
+    Plane,
     List,
     ShieldCheck,
     PlusCircle,
@@ -54,15 +55,29 @@ const footerNavItems: NavItem[] = [
 
 
 // ✨ --- 2. ROLE-SPECIFIC NAVIGATION ---
-
+const unifastRcNavItems: NavItem[] = [
+  
+    {
+        title: 'UniFast Database',
+        icon: Database,
+        href: '#',
+        children: [
+            {
+                title: 'TES',
+                href: route('superadmin.tes.index'),
+                isActive: route().current('superadmin.tes.index'),
+            },
+            {
+                title: 'TDP',
+                href: route('superadmin.tdp.index'),
+                isActive: route().current('superadmin.tdp.index'),
+            },
+        ],
+    },
+];
 // Items for 'Super Admin' (routes often prefixed with 'superadmin.')
 const superAdminNavItems: NavItem[] = [
-    {
-        title: 'Travel Claims',
-        href: route('superadmin.travel-claims.create'),
-        icon: ClipboardList,
-        isActive: route().current('superadmin.travel-claims.*'),
-    },
+  
     {           
                                         title: 'Validation',
                                         href: route('unifastrc.validation.index'),
@@ -291,6 +306,30 @@ const { auth, ziggy } = usePage<PageProps>().props;
                 },
             ],
         },
+            {
+        title: 'Travel Management',
+        icon: Plane,
+        href: '#',
+        children: [
+            {
+                title: 'Request Authority',
+                href: route('travel-orders.create'),
+                isActive: route().current('travel-orders.create'),
+            },
+            {
+                title: 'My Travel Claims',
+                href: route('travel-claims.create'), // Your existing claims page
+                isActive: route().current('travel-claims.*'),
+            },
+            {
+    title: 'New Travel Request',
+    isActive: route().current('travel.create'),
+    icon: Plane,
+}
+        ],
+    },
+    
+    
     ];
     // --- FIX: Correctly get roles and determine primary role ---
     // Ensure roles is treated as an array, even if undefined/null initially
@@ -315,7 +354,7 @@ const { auth, ziggy } = usePage<PageProps>().props;
                 ...accountantNavItems,
                  ...scholarNavItems,
                  ...budgetNavItems,
-                // ...unifastRcNavItems, 
+                
                 // ... potentially add others like accountantNavItems if needed
             ];
             break;

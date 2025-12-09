@@ -220,7 +220,9 @@ class FinancialRequestController extends Controller
         $cashierUsers = User::role('Cashier')->get();
         Notification::send($cashierUsers, new NewRequestInQueue($request, 'cashier'));
         broadcast(new FinancialRequestUpdated($request, 'Cashier'))->toOthers();
-        if (Auth::user()->hasRole('RD') || Auth::user()->hasRole('Chief') || Auth::user()->hasRole('Super Admin')) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        if ($user->hasRole('RD') || $user->hasRole('Chief') || $user->hasRole('Super Admin')) {
              return redirect()->route('management.financial.all-requests', ['status' => 'pending'])
                              ->with('success', 'Request approved and skipped straight to Cashier.');
         }

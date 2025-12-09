@@ -25,7 +25,8 @@ if (typeof window !== 'undefined') {
 interface AppLayoutProps {
     children: ReactNode;
     breadcrumbs?: BreadcrumbItem[];
-    user: User; // This is the 'user' prop passed in
+ user: User | null; // allow nullable user since auth.user can be null
+
     header?: ReactNode;
     page_title: string;
 }

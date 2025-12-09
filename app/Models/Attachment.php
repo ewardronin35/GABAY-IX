@@ -19,6 +19,7 @@ class Attachment extends Model
         'size',
         'user_id', // ✨ ADD THIS
         'disk',    // ✨ ADD THIS
+        'requirement_id', // ✨ ADD THIS
     ];
 
   
@@ -27,5 +28,9 @@ class Attachment extends Model
     public function attachable(): MorphTo
     {
         return $this->morphTo();
+    }
+    public function requirement()
+    {
+        return $this->belongsTo(Requirement::class);
     }
 }

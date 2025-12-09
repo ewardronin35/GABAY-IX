@@ -68,14 +68,14 @@ class TdpController extends Controller
             ->pluck('name')->toArray();
         // --- END OF FIX ---
     }
-public function getTdpQuery(Request $request, string $searchKey = 'search'): Builder
+ public function getTdpQuery(Request $request, string $searchKey = 'search'): Builder
     {
        $query = AcademicRecord::with([
             'enrollment.scholar.address.city',     
             'enrollment.scholar.address.district', 
-            // FIX: Re-enable this so we can get the relationship data
             'enrollment.scholar.address.barangay', 
             'enrollment.scholar.address', 
+            
             'enrollment.program',       
             'hei.province',             
             'hei.district',           
@@ -110,15 +110,15 @@ public function getTdpQuery(Request $request, string $searchKey = 'search'): Bui
         return $query;
     }
 
-public function index(Request $request): Response
+    public function index(Request $request): Response
     {
         // 1. BASE QUERY (For Stats & Charts)
         $statsQuery = AcademicRecord::query()
-            ->whereHas('enrollment', function ($q) {
-                $q->where('program_id', $this->tdpProgramId);
+            ->whereHas('enrollment.program', function ($q) {
+                $q->where('program_name', 'like', '%TDP%');
             });
 
-        // Apply Filters
+        // Apply Global Filters
         if ($request->input('academic_year')) {
             $statsQuery->whereHas('academicYear', fn($ay) => $ay->where('name', $request->input('academic_year')));
         }
@@ -138,7 +138,9 @@ public function index(Request $request): Response
         // 2. DATA FOR DROPDOWNS
         $semesters = Semester::all()->map(fn($sem) => ['id' => $sem->id, 'name' => $sem->name])->toArray();
         
-        $batches = AcademicRecord::whereHas('enrollment', fn($q) => $q->where('program_id', $this->tdpProgramId))
+        $batches = AcademicRecord::whereHas('enrollment.program', function($q) {
+                $q->where('program_name', 'like', '%TDP%');
+            })
             ->whereNotNull('batch_no')->where('batch_no', '!=', '')
             ->distinct()->orderBy('batch_no', 'asc')->pluck('batch_no')->toArray();
             
@@ -150,7 +152,6 @@ public function index(Request $request): Response
         $uniqueHeis = (clone $statsQuery)->distinct('hei_id')->count('hei_id');
         $uniqueCourses = (clone $statsQuery)->distinct('course_id')->count('course_id');
         
-        // Unique Provinces (Requires join to address)
         $uniqueProvinces = (clone $statsQuery)
             ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
             ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
@@ -158,9 +159,7 @@ public function index(Request $request): Response
             ->distinct('addresses.province')
             ->count('addresses.province');
 
-        // 4. GENERATE CHARTS (CRITICAL: Use ->values() to force Array format)
-        
-        // Chart A: Sex Distribution
+        // 4. GENERATE CHARTS
         $sexDistribution = (clone $statsQuery)
             ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
             ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
@@ -174,9 +173,8 @@ public function index(Request $request): Response
             ")
             ->groupBy('scholars.sex')
             ->get()
-            ->values(); // Force array index reset
+            ->values(); 
 
-        // Chart B: Year Level Distribution
         $yearLevelDistribution = (clone $statsQuery)
             ->selectRaw('year_level as name, count(*) as value')
             ->whereNotNull('year_level')
@@ -185,7 +183,6 @@ public function index(Request $request): Response
             ->get()
             ->values();
 
-        // Chart C: Payment Status Distribution
         $statusDistribution = (clone $statsQuery)
             ->selectRaw("COALESCE(payment_status, 'Unpaid') as name, count(*) as value")
             ->groupBy('payment_status')
@@ -193,7 +190,6 @@ public function index(Request $request): Response
             ->get()
             ->values();
 
-        // Chart D: Top 5 HEIs
         $topHeis = (clone $statsQuery)
             ->join('heis', 'academic_records.hei_id', '=', 'heis.id')
             ->selectRaw('heis.hei_name as name, count(*) as value')
@@ -204,16 +200,17 @@ public function index(Request $request): Response
             ->values();
 
         // 5. FETCH GRID DATA
-      $databaseEnrollments = $this->getTdpQuery($request, 'search_db')->paginate(10, ['*'], 'db_page')->withQueryString();
+        $databaseEnrollments = $this->getTdpQuery($request, 'search_db')
+            ->paginate(10, ['*'], 'db_page')
+            ->withQueryString();
         
-      
-
-        $masterlistEnrollments = $this->getTdpQuery($request, 'search_ml')->paginate(10, ['*'], 'ml_page')->withQueryString();
+        $masterlistEnrollments = $this->getTdpQuery($request, 'search_ml')
+            ->paginate(10, ['*'], 'ml_page')
+            ->withQueryString();
         
-        // HEI Tab Data
         $heiQuery = HEI::query()
             ->whereHas('academicRecords', function ($q) use ($request) { 
-                $q->whereHas('enrollment', fn($eq) => $eq->where('program_id', $this->tdpProgramId));
+                $q->whereHas('enrollment.program', fn($eq) => $eq->where('program_name', 'like', '%TDP%'));
                 
                 $q->when($request->input('academic_year'), function ($sq, $ay_name) {
                     return $sq->whereHas('academicYear', fn($ay) => $ay->where('name', $ay_name));
@@ -222,13 +219,49 @@ public function index(Request $request): Response
             
         $paginatedHeis = $heiQuery->paginate(10, ['*'], 'hei_page')->withQueryString();
 
+        // 6. FETCH VALIDATION DATA
+        $validationScholars = ScholarEnrollment::with([
+            'scholar', 
+            'program', 
+            'academicRecords' => function($q) {
+                $q->latest()->take(1)->with('billingRecord');
+            }
+        ])
+        ->whereHas('program', function($q) {
+            $q->where('program_name', 'like', '%TDP%'); 
+        })
+        ->when($request->input('search_validation'), function ($q, $search) {
+            $q->whereHas('scholar', function ($sub) use ($search) {
+                $sub->where('family_name', 'like', "%{$search}%")
+                    ->orWhere('given_name', 'like', "%{$search}%");
+            });
+        })
+        ->whereDoesntHave('academicRecords.billingRecord', function($q) {
+            $q->where('status', 'Validated');
+        })
+        ->paginate(10, ['*'], 'validation_page')
+        ->withQueryString();
+
+        $validationScholars->getCollection()->transform(function ($enrollment) {
+            $latest = $enrollment->academicRecords->first();
+            return [
+                'id' => $enrollment->id,
+                'award_number' => $enrollment->award_number,
+                'scholar' => $enrollment->scholar,
+                'program' => $enrollment->program,
+                'payment_status' => $latest?->billingRecord?->status ?? 'Pending',
+            ];
+        });
+
+        // 7. RETURN RESPONSE
         return Inertia::render('Admin/Tdp/Index', [
             'paginatedHeis' => $paginatedHeis,
             'databaseEnrollments' => $databaseEnrollments,
             'enrollments' => $masterlistEnrollments,
-            
+            'validationScholars' => $validationScholars,
+
             'filters' => $request->all(),
-            'academicYears' => $this->academicYears,
+            'academicYears' => AcademicYear::pluck('name')->toArray(), 
             'semesters' => $semesters,
             'batches' => $batches,
             'heiList' => $heiList,
@@ -241,7 +274,6 @@ public function index(Request $request): Response
                 'uniqueCourses' => $uniqueCourses, 
             ],
             
-            // THIS IS THE MISSING PART
             'graphs' => [
                 'sexDistribution' => $sexDistribution,
                 'yearLevelDistribution' => $yearLevelDistribution,
@@ -250,6 +282,7 @@ public function index(Request $request): Response
             ]
         ]);
     }
+
 public function bulkUpdate(Request $request): RedirectResponse
 {
     // 1. CLEAN THE DATA
@@ -761,5 +794,39 @@ public function bulkUpdate(Request $request): RedirectResponse
         return response()->json([
             'success' => 'Masterlist is being imported. You will be notified upon completion.'
         ]);
+    }
+    /**
+     * Export Filtered Report to PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        // 1. Reuse the same query logic used in the grid
+        $query = $this->getTdpQuery($request, 'search_db');
+
+        // 2. Get all records (without pagination)
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return back()->with('error', 'No records found to export.');
+        }
+
+        // 3. Generate PDF
+        // Note: Ensure 'exports.tdp-masterlist-pdf' view exists
+        $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', [
+            'records' => $records,
+            'generated_at' => now()->format('F d, Y h:i A'),
+            'filters' => $request->all()
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('TDP_Report_' . now()->format('Y-m-d_His') . '.pdf');
+    }
+
+    /**
+     * Export Filtered Report to Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        // Pass the full Request object so TdpMasterlistExport receives an Illuminate\Http\Request
+        return Excel::download(new TdpMasterlistExport($request), 'TDP_Report_' . now()->format('Y-m-d_His') . '.xlsx');
     }
 }

@@ -50,4 +50,11 @@ public function academicRecords(): HasMany
 {
     return $this->hasMany(AcademicRecord::class);
 }
+/**
+     * Get all the attachments (documents) for this enrollment.
+     */
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
+    }
 }

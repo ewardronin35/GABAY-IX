@@ -37,7 +37,7 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
     private $provinces;
     private $regions;
 
-    public function __construct($programId, $uploaderId)
+   public function __construct($programId, $uploaderId)
     {
         $this->programId = $programId;
         $this->uploaderId = $uploaderId;
@@ -49,16 +49,15 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
             $this->regions = []; 
         }
 
-        // --- PRE-FETCH PROGRAM IDs ---
-        // We try to find the IDs once during construction to make the import fast
-        try {
-            $tes = Program::where('name', 'like', '%TES%')->orWhere('code', 'TES')->first();
+        // Pre-fetch Program IDs
+       try {
+            // ✅ FIX: Only check program_name
+            $tes = Program::where('program_name', 'like', '%TES%')->first();
             $this->tesProgramId = $tes ? $tes->id : null;
 
-            $tdp = Program::where('name', 'like', '%TDP%')->orWhere('code', 'TDP')->first();
+            $tdp = Program::where('program_name', 'like', '%TDP%')->first();
             $this->tdpProgramId = $tdp ? $tdp->id : null;
         } catch (\Exception $e) {
-            // Fallback if Program model issues exist
             Log::error("Program Lookup Error: " . $e->getMessage());
         }
     }
@@ -68,15 +67,29 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
         return 1;
     }
 
-    public function model(array $row)
+   public function model(array $row)
     {
-        // 1. Critical Data Check
         if (!isset($row['seq']) || !isset($row['last_name'])) {
              return null;
         }
 
         $seq = trim($row['seq']);
 
+        // 1. AUTO-DETECT PROGRAM BASED ON AWARD NUMBER
+        $finalProgramId = $this->programId; 
+        
+        $awardNo = $row['award_number'] ?? $row['award_no'] ?? '';
+        
+        if (!empty($awardNo)) {
+            $prefix = strtoupper(substr($awardNo, 0, 4)); 
+            
+            // ✅ FIX: Use 'tesProgramId' and 'tdpProgramId' (Corrected Variable Names)
+            if ($prefix === 'TES-' && $this->tesProgramId) {
+                $finalProgramId = $this->tesProgramId; 
+            } elseif ($prefix === 'TDP-' && $this->tdpProgramId) {
+                $finalProgramId = $this->tdpProgramId; 
+            }
+        }
         // 2. HEI LINKING
         $hei = HEI::where('hei_code', $row['hei_uii'] ?? '')->first();
         if (!$hei && !empty($row['hei_name'])) {
@@ -141,7 +154,7 @@ class TdpProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
         $enrollment = ScholarEnrollment::firstOrCreate(
             [
                 'scholar_id' => $scholar->id,
-                'program_id' => $detectedProgramId, // Use the detected ID here
+               'program_id' => $finalProgramId,
             ],
             [
                 'hei_id' => $hei ? $hei->id : null,

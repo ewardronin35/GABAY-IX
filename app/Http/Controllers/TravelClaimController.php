@@ -19,11 +19,11 @@ class TravelClaimController extends Controller
      */
     public function index(): Response
     {
-        return Inertia::render('Admin/TravelClaims/CreateTravelClaims');
+        return Inertia::render('TravelClaims/CreateTravelClaims');
     }
      public function create(): Response
     {
-        return Inertia::render('Admin/TravelClaims/CreateTravelClaims');
+        return Inertia::render('TravelClaims/CreateTravelClaims');
     }
 
 

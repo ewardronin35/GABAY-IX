@@ -29,7 +29,10 @@ use App\Http\Controllers\ChatbotController; // <-- Add this
 use App\Http\Controllers\FinancialRequestController;
 use App\Http\Controllers\UnifastRc\ValidationController;
 use App\Http\Controllers\BillingRecordController; // <-- Add this at the top
-// All your other routes are here...
+use App\Http\Controllers\TravelOrderController; // <-- ADD THIS LINE
+use App\Http\Controllers\TravelRequestController; // <-- ADD THIS LINE
+use App\Http\Controllers\TravelController; // <-- ADD THIS LINE
+
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
 Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback'])->name('socialite.callback');
 
@@ -41,11 +44,9 @@ Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback']
 |--------------------------------------------------------------------------
 */
 
-// ... your public, auth, and applicant routes remain the same ...
 
 
-// --- ADMIN PANEL ROUTES ---
-// All routes in this group will have the '/admin' prefix and require login.
+
 Route::middleware(['auth', 'verified'])->prefix('superadmin')->name('superadmin.')->group(function () {
 
     // --- USER & ROLE MANAGEMENT ---
@@ -100,8 +101,8 @@ Route::post('/coscho/import', [CoschoController::class, 'import'])->name('coscho
         ->name('reports.masterlist.excel');
         // In routes/web.php
 
-// ... inside the 'superadmin.' group
-
+// ✅ TRAVEL ORDER ROUTES
+  
 // ✅ ADD these two routes
 Route::get('/reports/statistics-data', [ReportController::class, 'fetchStatisticsData'])->name('reports.statisticsData');
 Route::post('/reports/generate-statistics-pdf', [ReportController::class, 'generateStatisticsPdf'])->name('reports.statisticsPdf');
@@ -120,7 +121,6 @@ Route::get('/reports/masterlist-data', [CoschoController::class, 'masterlistData
 
     // 4. Bulk Destroy (Deleting Selected Rows)
     Route::post('/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('bulk-destroy');
-
 Route::get('/tes', [TesController::class, 'index'])->name('tes.index');
     Route::put('/tes/bulk-update', [TesController::class, 'bulkUpdate'])->name('tes.bulkUpdate');
     Route::get('/tes/masterlist-data', [TesController::class, 'fetchMasterlistData'])->name('tes.masterlistData');
@@ -179,35 +179,70 @@ Route::get('/estat/masterlist/pdf', [EstatController::class, 'generateMasterlist
         Route::patch('/applications/{csmp_scholar}', [CsmpAdminController::class, 'update'])
              ->name('applications.update');
          });
+        Route::get('tdp/noa/{enrollment}', [ValidationController::class, 'generateNoa'])->name('tdp.generate-noa');
+Route::get('/tdp/batch-noa', [ValidationController::class, 'generateBatchNoa'])->name('tdp.generate-batch-noa');
+         Route::prefix('tdp')->name('tdp.')->group(function () {
+        
+      
+        
+       
+        Route::get('/export/pdf', [TdpController::class, 'exportPdf'])->name('export-pdf');
+        Route::get('/export/excel', [TdpController::class, 'exportExcel'])->name('export-excel');
 
+       
+    });
+    Route::prefix('tes/validation')->name('tes.validation.')->group(function () {
+        Route::get('/', [ValidationController::class, 'index'])
+            ->defaults('program', 'TES') // ✅ Force TES
+            ->name('index');
+
+        // Reuse API methods (Route names must be distinct for Ziggy)
+        Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
+        Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
+        Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
+    });
+Route::prefix('tdp/validation')->name('tdp.validation.')->group(function () {
+        Route::get('/', [ValidationController::class, 'index'])
+            ->defaults('program', 'TDP') // ✅ Force TDP
+            ->name('index');
+            
+        // Reuse API methods
+        Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
+        Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
+        Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
+    });
+
+    // The API for the modal (fetches TES vs TDP requirements)
+    Route::get('/validation/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])
+        ->name('validation.checklist');
+
+    // The button action to approve
+    Route::post('/validation/{enrollment}/validate', [ValidationController::class, 'validateScholar'])
+        ->name('validation.approve');
 
     Route::middleware('permission:create travel claims')->group(function () {
 
-    Route::get('/travel-claims', [TravelClaimController::class, 'create'])
-    ->name('travel-claims.create');
-    Route::resource('travel-claims', TravelClaimController::class);
+
     });
 });
 
-Route::middleware(['auth', 'verified', 'permission:validate submissions'])    ->prefix('unifastrc')
-    ->name('unifastrc.')
+Route::middleware(['auth', 'verified', 'permission:validate submissions'])
+    ->prefix('unifastrc')
+    ->name('unifastrc.') // This adds the first part
     ->group(function () {
     
-    /**
-     * The main dashboard for validation.
-     * This will show the lists of pending scholars.
-     */
     Route::get('/validation', [ValidationController::class, 'index'])
-         ->name('validation.index');
-         
-    /**
-     * This route will handle the "Save Changes" button
-     * when the RC submits their validation work.
-     */
-    Route::put('/validation/submit', [ValidationController::class, 'bulkUpdate'])
-         ->name('validation.bulkUpdate');
-});
+        ->name('validation.index'); 
+        // Result = unifastrc.validation.index
 
+    Route::get('/validation/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])
+        ->name('validation.checklist');
+        // Result = unifastrc.validation.checklist
+
+    Route::post('/validation/{enrollment}/validate', [ValidationController::class, 'validateScholar'])
+        ->name('validation.approve');
+        // Result = unifastrc.validation.approve
+});
 // Chief
 Route::middleware(['auth', 'role:Chief'])->group(function () {
     Route::get('/chief/dashboard', [BatchController::class, 'chiefDashboard'])->name('chief.dashboard');
@@ -262,7 +297,16 @@ Route::delete('/uploads/revert', [UploadController::class, 'revert']);
 Route::get('/financial-requests', [FinancialRequestController::class, 'index'])->name('financial.index');
 Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
 Route::patch('/billing-records/{billingRecord}', [BillingRecordController::class, 'update'])->name('billing-records.update');
-
+Route::get('/travel/request/create', [TravelRequestController::class, 'create'])->name('travel.requests.create');
+    Route::post('/travel/request', [TravelRequestController::class, 'store'])->name('travel.requests.store');
+      Route::get('/travel/request', [TravelOrderController::class, 'create'])->name('travel-orders.create');
+    Route::post('/travel/request', [TravelOrderController::class, 'store'])->name('travel-orders.store');
+Route::get('/travel/create', [TravelController::class, 'create'])->name('travel.create');
+    
+    Route::get('/travel-claims', [TravelClaimController::class, 'create'])
+    ->name('travel-claims.create');
+    Route::resource('travel-claims', TravelClaimController::class);
+Route::post('/travel/store', [TravelController::class, 'store'])->name('travel.store');
 });
 
 Route::middleware(['auth', 'role:Accounting'])->prefix('accounting')->name('accounting.')->group(function () {

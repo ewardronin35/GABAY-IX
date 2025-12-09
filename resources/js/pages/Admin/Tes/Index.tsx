@@ -1,104 +1,156 @@
-import AuthenticatedLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
-import { type PageProps, type User } from '@/types';
-import { useState, useEffect } from 'react';
-
-// UI Components and Partials
+import AuthenticatedLayout from "@/layouts/app-layout";
+import { PageProps, PaginatedResponse, HEI, AcademicRecord, Semester } from "@/types";
+import { Head, router, Link } from "@inertiajs/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, FileText, List, Upload, Building } from 'lucide-react';
-import { Toaster } from 'sonner';
-import { TesDatabaseGrid } from './Partials/TesDatabaseGrid';
-import { TesMasterlistGrid } from './Partials/TesMasterlistGrid';
-import { TesReportGenerator } from './Partials/TesReportGenerator';
-import { TesImportForm } from './Partials/TesImportForm';
-// Handsontable Styles
-import 'handsontable/styles/handsontable.css';
-import 'handsontable/styles/ht-theme-horizon.css';
+import { Button } from "@/components/ui/button"; 
+// Import your TES Components
+import { TesHeiGrid } from "./Partials/TesHeiGrid";
+import { TesDatabaseGrid } from "./Partials/TesDatabaseGrid";
+import { TesMasterlistGrid } from "./Partials/TesMasterlistGrid";
+import { TesImportForm } from "./Partials/TesImportForm";
+import { TesReportGenerator } from "./Partials/TesReportGenerator";
+import { School, Sheet, List, BarChart3, Upload, FileCheck } from "lucide-react";
+import { route } from "ziggy-js";
 
-const getInitialThemeClass = (): string => {
-    if (typeof window !== 'undefined' && document.documentElement) {
-        return document.documentElement.classList.contains('dark')
-            ? 'ht-theme-horizon ht-theme-horizon-dark'
-            : 'ht-theme-horizon';
-    }
-    return 'ht-theme-horizon';
+export type TesPageProps = PageProps & {
+    // These match the variables passed from TesController
+    database_tes: PaginatedResponse<AcademicRecord>;
+    ml_tes: PaginatedResponse<AcademicRecord>;
+    paginatedHeis: PaginatedResponse<HEI & { enrollments_count: number }>;
+    statistics: any;
+    graphs: any;
+    academicYears: string[];
+    semesters: Semester[];
+    batches: string[];
+    heiList: any[];
+    courses?: any[];
+    filters: any; // Global filters
+    filters_db: { search_db?: string };
+    filters_ml: { search_ml?: string };
 };
 
-interface Paginator<T> {
-    data: T[];
-    links: any[];
-}
+export default function TesIndex(props: TesPageProps) {
+    const {
+        auth,
+        database_tes,
+        ml_tes,
+        paginatedHeis,
+        statistics,
+        graphs,
+        academicYears,
+        semesters,
+        batches,
+        heiList,
+        filters,
+        filters_db,
+        filters_ml,
+        ziggy,
+        courses,
+    } = props;
 
-// ▼▼▼ THIS IS THE FIX ▼▼▼
-// Update the props to match what the controller is sending.
-interface TesPageProps extends PageProps {
-    auth: { user: User };
-    database_tes: Paginator<any>; // Changed from tesDatabase
-    ml_tes: Paginator<any>;         // Changed from tesMasterlist
-    hei_list: any[];
-    course_list: any[];
-    filters_db: { search_db?: string }; // Changed from filters
-    filters_ml: { search_ml?: string }; // Changed from filters
-}
-// ▲▲▲ END OF FIX ▲▲▲
+    if (!auth.user) return null;
 
-export default function Tes({
-    auth,
-    database_tes, // Renamed prop
-    ml_tes,       // Renamed prop
-    hei_list,
-    course_list,
-    filters_db,   // Renamed prop
-    filters_ml,   // Renamed prop
-}: TesPageProps) {
-    const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
-
-    useEffect(() => {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    setTableClassName(getInitialThemeClass());
-                }
-            });
-        });
-        if (typeof window !== 'undefined' && document.documentElement) {
-            observer.observe(document.documentElement, { attributes: true });
+    const onTabChange = (value: string) => {
+        if (value === "validation") {
+            // ✅ 1. Redirect to the Dynamic Validation Controller (TES Mode)
+            router.visit(route("superadmin.tes.validation.index"));
+        } else {
+            // 2. Standard Tab Switch
+            router.get(
+                route("superadmin.tes.index"),
+                { ...filters, tab: value },
+                { preserveState: true, replace: true, preserveScroll: true }
+            );
         }
-        return () => observer.disconnect();
-    }, []);
+    };
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">TES Module</h2>}
-        >
-            <Head title="TES Module" />
-            <Toaster richColors position="top-right" />
-            <div className="py-12">
-                <Tabs defaultValue="database" className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
-                    <TabsList>
-                        <TabsTrigger value="hei"><Building className="w-4 h-4 mr-2" /> HEIs</TabsTrigger>
-                        <TabsTrigger value="database"><Database className="w-4 h-4 mr-2" /> Database</TabsTrigger>
-                        <TabsTrigger value="masterlist"><List className="w-4 h-4 mr-2" /> Masterlist</TabsTrigger>
-                        <TabsTrigger value="report"><FileText className="w-4 h-4 mr-2" /> Reports</TabsTrigger>
-                        <TabsTrigger value="import"><Upload className="w-4 h-4 mr-2" /> Import</TabsTrigger>
-                    </TabsList>
+        <AuthenticatedLayout user={auth.user} page_title="TES Management">
+            <Head title="TES Management" />
+            <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+                
+                <div className="flex items-center justify-between space-y-2">
+                    <h2 className="text-3xl font-bold tracking-tight">
+                        Tertiary Education Subsidy (TES)
+                    </h2>
+                  
+                </div>
 
-                    <TabsContent value="database" className="space-y-4">
-                        {/* ▼▼▼ FIX: Pass the correct props down ▼▼▼ */}
-                        {database_tes && <TesDatabaseGrid records={database_tes} filters={filters_db} tableClassName={tableClassName} />}
-                    </TabsContent>
-                    <TabsContent value="masterlist" className="space-y-4">
-                        {/* ▼▼▼ FIX: Pass the correct props down ▼▼▼ */}
-                        {ml_tes && <TesMasterlistGrid records={ml_tes} filters={filters_ml} />}
-                    </TabsContent>
-                    <TabsContent value="report" className="space-y-4">
-                        <TesReportGenerator />
-                    </TabsContent>
-                    <TabsContent value="import" className="space-y-4">
-                        <TesImportForm />
-                    </TabsContent>
-                </Tabs>
+                <div className="space-y-4">
+                    <Tabs defaultValue={ziggy.query.tab || "hei"} onValueChange={onTabChange}>
+                        <div className="overflow-x-auto pb-2">
+                            <TabsList className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground w-auto min-w-full md:min-w-0">
+                                <TabsTrigger value="hei" className="px-3 flex-1 md:flex-none">
+                                    <School className="w-4 h-4 mr-2" /> By School
+                                </TabsTrigger>
+                                
+                                {/* ✅ VALIDATION TAB */}
+                                <TabsTrigger value="validation" className="px-3 flex-1 md:flex-none">
+                                    <FileCheck className="w-4 h-4 mr-2" /> Validation
+                                </TabsTrigger>
+
+                                <TabsTrigger value="database" className="px-3 flex-1 md:flex-none">
+                                    <List className="w-4 h-4 mr-2" /> Database
+                                </TabsTrigger>
+                                <TabsTrigger value="masterlist" className="px-3 flex-1 md:flex-none">
+                                    <Sheet className="w-4 h-4 mr-2" /> Masterlist
+                                </TabsTrigger>
+                                <TabsTrigger value="import" className="px-3 flex-1 md:flex-none">
+                                    <Upload className="w-4 h-4 mr-2" /> Import
+                                </TabsTrigger>
+                                <TabsTrigger value="reports" className="px-3 flex-1 md:flex-none">
+                                    <BarChart3 className="w-4 h-4 mr-2" /> Reports
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        <TabsContent value="hei">
+                            <TesHeiGrid paginatedHeis={paginatedHeis} filters={filters} />
+                        </TabsContent>
+
+                        {/* ❌ NO VALIDATION CONTENT HERE. IT REDIRECTS. */}
+
+                        <TabsContent value="database">
+                            <TesDatabaseGrid
+                                records={database_tes}
+                                filters={filters_db}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
+                                courses={courses}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="masterlist">
+                            <TesMasterlistGrid
+                                records={ml_tes}
+                                filters={filters_ml}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="import">
+                            <TesImportForm />
+                        </TabsContent>
+
+                        <TabsContent value="reports">
+                            <TesReportGenerator 
+                                statistics={statistics} 
+                                graphs={graphs}
+                                filters={filters}
+                                academicYears={academicYears}
+                                semesters={semesters}
+                                batches={batches}
+                                heiList={heiList}
+                                courses={courses || []}
+                            />
+                        </TabsContent>
+                    </Tabs>
+                </div>
             </div>
         </AuthenticatedLayout>
     );

@@ -1,23 +1,17 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { OfficialHeader } from '@/components/ui/OfficialHeader';
 import { toast } from 'sonner';
-
-// ✅ 1. Import the global Inertia router
 import { router } from '@inertiajs/react';
 import { route } from 'ziggy-js';
 
-// Import FilePond and its styles
+// FilePond
 import { FilePond, registerPlugin } from 'react-filepond';
 import 'filepond/dist/filepond.min.css';
 import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
 
-// Register the file type validation plugin
 registerPlugin(FilePondPluginFileValidateType);
 
 export function TesImportForm() {
-    // We no longer need useForm for this component
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
     return (
         <Card className="max-w-3xl mx-auto">
             <CardHeader>
@@ -25,7 +19,11 @@ export function TesImportForm() {
             </CardHeader>
             <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                    Drag & drop your Excel file below or click to browse. The import will begin automatically after a successful upload.
+                    Drag & drop your Excel file below (.xlsx, .csv). 
+                    <br />
+                    <span className="text-xs italic opacity-70">
+                        Note: Students with "TDP-" Award Numbers will be automatically detected and saved to the TDP program.
+                    </span>
                 </p>
 
                 <FilePond
@@ -33,36 +31,61 @@ export function TesImportForm() {
                     server={{
                         process: {
                             url: route('superadmin.tes.upload'),
-                            headers: { 'X-CSRF-TOKEN': csrfToken || '' },
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            },
+                            // ✅ FIX: Handle the response properly
+                            onload: (response) => {
+                                // The server returns the PLAIN TEXT path (e.g., "imports/abc.xlsx").
+                                // We return it here so FilePond passes it to 'onprocessfile'
+                                return response; 
+                            },
+                            onerror: (response) => {
+                                console.error('Upload Error:', response);
+                                // Attempt to parse JSON error if possible, else show generic
+                                try {
+                                    const err = JSON.parse(response);
+                                    toast.error(err.message || "Upload failed.");
+                                } catch (e) {
+                                    toast.error("Upload failed. Server returned an invalid response.");
+                                }
+                                return response;
+                            },
                         },
-                        revert: null,
                     }}
-                    acceptedFileTypes={['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']}
+                    allowMultiple={false}
+                    acceptedFileTypes={[
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+                        'application/vnd.ms-excel',
+                        'text/csv'
+                    ]}
                     labelFileTypeNotAllowed="Invalid file type"
-                    fileValidateTypeLabelExpectedTypes="Expected .xlsx or .xls"
+                    fileValidateTypeLabelExpectedTypes="Expected .xlsx or .csv"
+                    maxFiles={1}
+                    labelIdle='Drag & Drop your Excel file or <span class="filepond--label-action">Browse</span>'
+                    credits={false}
+                    
+                    // ✅ TRIGGER IMPORT AFTER UPLOAD
                     onprocessfile={(error, file) => {
-                        if (error) {
-                            console.error('FilePond Upload Error:', error);
-                            toast.error("Upload failed. Please try again.");
+                        if (error) return;
+
+                        // The 'serverId' contains the path returned by 'onload' above
+                        const filePath = file.serverId; 
+
+                        if (!filePath) {
+                            toast.error("Error: No file path received from server.");
                             return;
                         }
 
-                        // Get the file path from the server's response
-                        const filePath = file.serverId;
+                        toast.info("Processing import...", { duration: 2000 });
 
-                        // ✅ 2. Use router.post to send the data directly
                         router.post(route('superadmin.tes.import'), {
-                            file: filePath, // Send the path directly
+                            file: filePath,
                         }, {
-                            onSuccess: () => toast.success("File processed and data is being imported!"),
-                            onError: (errs) => {
-                                console.error('Inertia Import Error Response:', errs);
-                                toast.error("An error occurred while importing. Check console for details.");
-                            },
+                            onSuccess: () => toast.success("Import started! You will be notified when done."),
+                            onError: () => toast.error("Import failed to start."),
                         });
                     }}
-                    maxFiles={1}
-                    labelIdle='Drag & Drop your Excel file or <span class="filepond--label-action">Browse</span>'
                 />
             </CardContent>
         </Card>

@@ -171,7 +171,7 @@ export type Scholar = {
     sex: 'M' | 'F' | null;
     contact_no: string | null;
     email_address: string | null;
-    
+    birthdate: string | null; // <--- Add this line
     // --- Relationships ---
     address: Address | null;
     enrollments: ScholarEnrollment[];
@@ -205,15 +205,18 @@ export type AcademicRecord = {
 export type Address = {
     id: number;
     scholar_id: number;
-    // --- ADD THESE NEW FIELDS ---
+    
+    // Updated fields to match your database and import logic
     specific_address: string | null;
     barangay: string | null;
-    city_municipality: string | null;
+    town_city: string | null;          // <--- Changed from city_municipality
     province: string | null;
-    district: string | null;
+    congressional_district: string | null; // <--- Changed from district
     zip_code: string | null;
+    
+    // Optional: Add region if you use it
+    region?: string | null;
 };
-
 export type ScholarEnrollment = {
     id: number;
     scholar_id: number;

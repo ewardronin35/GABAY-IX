@@ -10,16 +10,23 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Row;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Illuminate\Support\Facades\Log;
-
+use App\Models\Program; // Import Program
 class TdpFinancialImport implements OnEachRow, WithHeadingRow, SkipsEmptyRows
 {
-    private $programId;
+      private $programId;
+    private $allowedProgramIds = [];
 
-    public function __construct($programId)
+
+   public function __construct($programId)
     {
         $this->programId = $programId;
-    }
 
+        // ✅ FIX: Only check program_name
+        $this->allowedProgramIds = Program::where('program_name', 'like', '%TES%')
+            ->orWhere('program_name', 'like', '%TDP%')
+            ->pluck('id')
+            ->toArray();
+    }
     public function headingRow(): int
     {
         return 2; // Skip "Academic Year" row, headers are on Row 2

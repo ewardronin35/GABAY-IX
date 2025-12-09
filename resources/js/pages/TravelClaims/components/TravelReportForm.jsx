@@ -1,4 +1,4 @@
-// resources/js/pages/Admin/TravelClaims/components/TravelReportForm.jsx
+// resources/js/pages/TravelClaims/components/TravelReportForm.jsx
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
