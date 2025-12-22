@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
-// ⬇️ **1. ADD THIS IMPORT**
-use App\Http\Requests\StoreTravelClaimRequest;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreTravelClaimRequest; // ✅ Uses your custom Request
 use App\Models\TravelClaim;
-use Illuminate\Http\Request; // You can remove this if 'StoreTravelClaimRequest' is the only one
+use App\Models\TravelOrder;
+use App\Models\Itinerary;
+use App\Models\Rer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -21,94 +25,148 @@ class TravelClaimController extends Controller
     {
         return Inertia::render('TravelClaims/CreateTravelClaims');
     }
-     public function create(): Response
-    {
-        return Inertia::render('TravelClaims/CreateTravelClaims');
-    }
 
+    public function create(Request $request): Response
+    {
+        return Inertia::render('TravelClaims/CreateTravelClaims', [
+            'prefilledCode' => $request->query('code', ''),
+        ]);
+    }
 
     /**
      * Store a newly created travel claim in storage.
      */
-    // ⬇️ **2. CHANGE 'Request' back to 'StoreTravelClaimRequest'**
     public function store(StoreTravelClaimRequest $request)
     {
-        // 🌟 **NO VALIDATION NEEDED HERE!** // Laravel automatically validates the request *before* // this method is even called.
-        // If validation fails, it will automatically send a 422
-        // error response back to your React form.
-
         try {
             DB::beginTransaction();
+
+            // 1. Create the Main Travel Claim (The Header)
+            $travelClaim = TravelClaim::create([
+                'user_id' => Auth::id(),
+                'travel_order_id' => $request->travel_order_id,
+                'claim_code' => 'CLM-' . now()->timestamp, // Auto-generate unique code
+                'actual_total_amount' => $request->actual_amount ?? 0,
+                'status' => 'Submitted',
+                'submitted_at' => now(),
+            ]);
+
+            // 2. Save Itinerary Items (Normalized)
+            // Handles both direct array or { items: [...] } structure
+            $itineraryData = $request->input('itinerary.items') ?? $request->input('itinerary');
             
-            // The rest of your 'store' logic is perfect.
-            // The $request object is now guaranteed to be safe and valid.
+            if (is_array($itineraryData)) {
+                foreach ($itineraryData as $item) {
+                    // Skip empty rows
+                    if (empty($item['date']) || empty($item['place_visited'])) continue;
 
-            // 1. Create the main Travel Claim record.
-            $travelClaim = TravelClaim::create(['status' => 'pending']);
-
-            // 2. Create the Itinerary and its items.
-            $itinerary = $travelClaim->itinerary()->create($request->itinerary);
-            if (!empty($request->itinerary['items'])) {
-                $itinerary->items()->createMany($request->itinerary['items']);
-            }
-            
-            // ... (rest of your logic for AppendixB, RER, attachments) ...
-            
-            // 3. Create the Appendix B form.
-            $travelClaim->appendixB()->create($request->appendixB);
-
-            // 4. Create the RER (expense report) and its items.
-            $rer = $travelClaim->rer()->create($request->rer);
-            if (!empty($request->rer['items'])) {
-                $rer->items()->createMany($request->rer['items']);
+                    Itinerary::create([
+                        'travel_claim_id' => $travelClaim->id,
+                        'date' => $item['date'],
+                        'place_visited' => $item['place_visited'],
+                        'departure_time' => $item['departure_time'] ?? null,
+                        'arrival_time' => $item['arrival_time'] ?? null,
+                        'means_of_transport' => $item['means_of_transport'] ?? null,
+                        'transport_cost' => $item['transport_cost'] ?? 0,
+                        'per_diem' => $item['per_diem'] ?? 0,
+                        'other_expenses' => $item['other_expenses'] ?? 0,
+                    ]);
+                }
             }
 
-            // 5. Create the Travel Report, if it exists in the payload.
-            if ($request->filled('report')) {
-                $travelClaim->travelReport()->create($request->report);
+            // 3. Save RER / Expense Items (Normalized)
+            // Handles both direct array or { items: [...] } structure
+            $rerData = $request->input('rer.items') ?? $request->input('rers');
+
+            if (is_array($rerData)) {
+                foreach ($rerData as $item) {
+                    // Skip empty rows
+                    if (empty($item['description']) || empty($item['amount'])) continue;
+
+                    Rer::create([
+                        'travel_claim_id' => $travelClaim->id,
+                        'date' => $item['date'] ?? now(), // Default to today if missing
+                        'or_number' => $item['or_number'] ?? null,
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                        'expense_type' => $item['expense_type'] ?? 'Other',
+                    ]);
+                }
             }
 
-            // 6. Process and MOVE attachments
+            // 4. Handle Attachments (Move from Temp -> Final)
             if ($request->filled('attachments')) {
                 foreach ($request->attachments as $tempPath) {
                     if (Storage::disk('public')->exists($tempPath)) {
                         $filename = basename($tempPath);
                         $permanentPath = 'travel_claims/' . $travelClaim->id . '/' . $filename;
+                        
+                        // Move file
                         Storage::disk('public')->move($tempPath, $permanentPath);
                         
-                        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
-                        $disk = Storage::disk('public');
-                        $fileSize = $disk->size($permanentPath);
-                        $fileMime = $disk->mimeType($permanentPath);
-
+                        // Save to 'attachments' table
                         $travelClaim->attachments()->create([
-                            'filename' => $filename,
-                            'filepath' => $permanentPath,
-                            'mime_type' => $fileMime,
-                            'size' => $fileSize,
+                            'file_name' => $filename,
+                            'file_path' => $permanentPath,
+                            'file_type' => Storage::disk('public')->mimeType($permanentPath),
                         ]);
                     }
                 }
             }
-            
+
             DB::commit();
 
             return response()->json(['message' => 'Travel claim submitted successfully!'], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Travel Claim Submission Failed: ' . $e->getMessage() . ' on line ' . $e->getLine());
-
-            // Cleanup temp files on failure
-            if ($request->filled('attachments')) {
-                foreach ($request->attachments as $tempPath) {
-                    if (Storage::disk('public')->exists($tempPath)) {
-                        Storage::disk('public')->delete($tempPath);
-                    }
-                }
-            }
+            Log::error('Travel Claim Error: ' . $e->getMessage());
             
-            return response()->json(['message' => 'An unexpected error occurred. Please try again.'], 500);
+            return response()->json([
+                'message' => 'An unexpected error occurred.',
+                'error' => $e->getMessage() // Optional: Remove in production
+            ], 500);
         }
+    }
+
+    /**
+     * API: Verify the Travel Order Code
+     */
+    public function verifyCode(Request $request)
+    {
+        $request->validate(['code' => 'required|string']);
+        $code = trim($request->code);
+
+        // 1. Find Order
+        $order = TravelOrder::where('travel_order_code', $code)
+            ->where('user_id', Auth::id()) // Security: Ensure ownership
+            ->first();
+
+        if (!$order) {
+            return response()->json(['error' => 'Code not found or access denied.'], 404);
+        }
+
+        // 2. Check Status
+        if ($order->status !== 'Approved') {
+            return response()->json(['error' => "Travel Order status is '{$order->status}'. It must be 'Approved'."], 422);
+        }
+
+        // 3. Check for Duplicate Claims
+        $existingClaim = TravelClaim::where('travel_order_id', $order->id)->first();
+        if ($existingClaim) {
+            return response()->json(['error' => 'A claim has already been submitted for this order.'], 422);
+        }
+
+        // 4. Return Data
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $order->id,
+                'destination' => $order->destination,
+                'purpose' => $order->purpose,
+                'date_range' => date('M d', strtotime($order->date_from)) . ' - ' . date('M d, Y', strtotime($order->date_to)),
+                'amount' => $order->total_estimated_cost,
+            ]
+        ]);
     }
 }

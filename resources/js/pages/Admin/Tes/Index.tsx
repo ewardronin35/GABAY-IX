@@ -111,9 +111,9 @@ export default function TesIndex(props: TesPageProps) {
                         {/* ❌ NO VALIDATION CONTENT HERE. IT REDIRECTS. */}
 
                         <TabsContent value="database">
-                            <TesDatabaseGrid
-                                records={database_tes}
-                                filters={filters_db}
+    <TesDatabaseGrid
+        databaseData={database_tes} 
+        filters={filters_db}
                                 academicYears={academicYears}
                                 semesters={semesters}
                                 batches={batches}

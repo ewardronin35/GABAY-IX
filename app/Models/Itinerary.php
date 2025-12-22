@@ -9,33 +9,26 @@ class Itinerary extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
-    // ⬇️ **REPLACE THIS**
-    // protected $fillable = [
-    //     'travel_claim_id',
-    //     'total_amount',
-    // ];
-    
-    // ⬇️ **WITH THIS**
     protected $fillable = [
         'travel_claim_id',
-        'name',
-        'position',
-        'official_station',
-        'fund_cluster',
-        'itinerary_no',
-        'date_of_travel',
-        'purpose',
-        // 'total_amount' // You can add this back if you calculate it in the controller
+        'date',
+        'place_visited',
+        'departure_time',
+        'arrival_time',
+        'means_of_transport',
+        'transport_cost',
+        'per_diem',
+        'other_expenses'
     ];
 
-    /**
-     * Get the travel claim that this itinerary belongs to.
-     */
+    protected $casts = [
+        'date' => 'date',
+        // 'departure_time' and 'arrival_time' are typically strings (H:i) or Carbon instances
+        'transport_cost' => 'decimal:2',
+        'per_diem' => 'decimal:2',
+        'other_expenses' => 'decimal:2',
+    ];
+
     public function travelClaim()
     {
         return $this->belongsTo(TravelClaim::class);

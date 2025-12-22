@@ -10,31 +10,35 @@ class TravelClaim extends Model
     use HasFactory;
 
     protected $fillable = [
+        // Links
         'user_id',
-        'moed_no',
-        'date_filed',
-        'position',
-        'official_station',
-        'purpose',
-        'places_to_be_visited',
-        'date_of_travel',
-        'duration_days',
-        'source_of_fund',
-        'per_diems',
-        'transportation',
-        'others_amount',
-        'others_specify',
-        'total_amount',
-        'cash_advance',
-        'recommending_approval_name',
-        'recommending_approval_designation',
-        'approved_by_name',
-        'approved_by_designation',
-        'status',
+        'travel_order_id',
+        
+        // Claim Info
+        'claim_code',
+        'actual_total_amount',
+        'cash_advance', // Kept this if you need to compute refunds
+        
+        // Workflow / Approval
+        'status', // 'Submitted', 'Verified', 'Paid'
+        'remarks',
+        'recommending_officer_id',
+        'approving_officer_id',
+        
+        // Timestamps
+        'submitted_at',
+        'processed_at',
+    ];
+
+    protected $casts = [
+        'submitted_at' => 'datetime',
+        'processed_at' => 'datetime',
+        'actual_total_amount' => 'decimal:2',
+        'cash_advance' => 'decimal:2',
     ];
 
     /**
-     * Get the user who owns the travel claim.
+     * The employee who filed the claim.
      */
     public function user()
     {
@@ -42,31 +46,49 @@ class TravelClaim extends Model
     }
 
     /**
-     * Get the itinerary for the travel claim.
+     * The approved Travel Order this claim is based on.
      */
-    public function itinerary()
+    public function travelOrder()
     {
-        return $this->hasOne(Itinerary::class);
+        return $this->belongsTo(TravelOrder::class);
     }
 
     /**
-     * Get the Appendix B (travel report) for the travel claim.
+     * The Chief/Officer who recommends approval.
      */
-    public function appendixB()
+    public function recommendingOfficer()
     {
-        return $this->hasOne(AppendixB::class);
+        return $this->belongsTo(User::class, 'recommending_officer_id');
     }
 
     /**
-     * Get the RER (expense receipt) for the travel claim.
+     * The RD who gives final approval for payment.
      */
-    public function rer()
+    public function approvingOfficer()
     {
-        return $this->hasOne(Rer::class);
+        return $this->belongsTo(User::class, 'approving_officer_id');
     }
 
     /**
-     * Get all of the attachments for the travel claim.
+     * The list of itinerary stops (Normalized).
+     * Note: Changed to hasMany because a claim has multiple stops.
+     */
+    public function itineraries()
+    {
+        return $this->hasMany(Itinerary::class);
+    }
+
+    /**
+     * The list of expense receipts (Normalized).
+     * Note: Changed to hasMany because a claim has multiple receipts.
+     */
+    public function rers()
+    {
+        return $this->hasMany(Rer::class);
+    }
+
+    /**
+     * Polymorphic attachments (Receipt images, certificates).
      */
     public function attachments()
     {

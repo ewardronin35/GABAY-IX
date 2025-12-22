@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FilePond, registerPlugin } from 'react-filepond';
 
 // Import FilePond styles
@@ -11,10 +11,20 @@ import 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css';
 // Register the plugins
 registerPlugin(FilePondPluginImageExifOrientation, FilePondPluginImagePreview, FilePondPluginFileValidateType);
 
-// Our component
-const Attachments = ({ onUpdateFiles }) => {
-    // Correctly get the CSRF token from the meta tag in the document's <head>
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const Attachments = ({ onUpdateFiles, existingFiles = [] }) => {
+    // Correctly get the CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    // Initialize files state based on what the Parent passed down
+    // We map the IDs to the format FilePond expects for pre-loaded files
+    const [files, setFiles] = useState(
+        existingFiles.map(id => ({
+            source: id,
+            options: {
+                type: 'local', // Tells FilePond this file is already on the server
+            },
+        }))
+    );
 
     return (
         <div className="p-6 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-950 shadow-md">
@@ -23,32 +33,33 @@ const Attachments = ({ onUpdateFiles }) => {
                 Upload supporting documents like certificates of appearance, receipts, etc. (Max 10 files)
             </p>
             <FilePond
+                files={files} // <--- BIND STATE HERE
                 allowMultiple={true}
                 maxFiles={10}
-                name="attachments" // This MUST match the name expected by the Laravel controller
+                name="attachments"
                 onupdatefiles={fileItems => {
-                    // Filter out null/undefined server IDs before passing them up
+                    // 1. Update local visual state
+                    setFiles(fileItems.map(fileItem => fileItem.file));
+
+                    // 2. Extract IDs for the parent form data
                     const fileIds = fileItems
                         .map(fileItem => fileItem.serverId)
                         .filter(id => id !== null);
+                    
                     onUpdateFiles(fileIds);
                 }}
-              server={{
-                    // By not providing a 'url' property, FilePond will
-                    // use the paths below as the full URL.
-
+                server={{
                     process: {
                         url: '/uploads/process',
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken
-                        }
+                        headers: { 'X-CSRF-TOKEN': csrfToken }
                     },
                     revert: {
                         url: '/uploads/revert',
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken
-                        }
-                    }
+                        headers: { 'X-CSRF-TOKEN': csrfToken }
+                    },
+                    // OPTIONAL: If you want to show the actual images for pre-loaded files, 
+                    // you need a 'load' endpoint in your controller.
+                    // load: '/uploads/load/', 
                 }}
                 labelIdle='Drag & Drop your files or <span class="filepond--label-action">Browse</span>'
             />

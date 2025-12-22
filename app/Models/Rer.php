@@ -11,26 +11,24 @@ class Rer extends Model
 
     protected $fillable = [
         'travel_claim_id',
-        'sheet_no',
-        'total_amount',
-        'cash_advance',
-        'amount_reimbursed',
-        'amount_refunded',
+        'or_date',
+        'or_number',
+        'description', // The item purchased (e.g. "Bus Ticket")
+        'amount',      // The cost
+        'expense_type' // Optional category
+    ];
+
+    protected $casts = [
+        'or_date' => 'date',
+        'amount' => 'decimal:2',
     ];
 
     /**
-     * Get the travel claim that this RER belongs to.
+     * Link back to the parent Claim.
      */
     public function travelClaim()
     {
         return $this->belongsTo(TravelClaim::class);
     }
 
-    /**
-     * Get the items for the RER.
-     */
-    public function items()
-    {
-        return $this->hasMany(RerItem::class);
-    }
 }

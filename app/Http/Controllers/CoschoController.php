@@ -29,7 +29,7 @@ public function masterlistData(Request $request) // ✅ Add Request $request
         $coschoProgram = Program::where('program_name', 'COSCHO')->first();
 
         // ▼▼▼ MODIFIED QUERY BLOCK ▼▼▼
-        $query = Scholar::where('program_id', $coschoProgram?->id)
+        $query = Scholar::where($coschoProgram?->id)
             ->with(['address', 'education.hei', 'education.course', 'academicYears']);
 
         // Add server-side search functionality
@@ -147,7 +147,7 @@ public function index(Request $request): Response
 {
     $coschoProgram = Program::where('program_name', 'COSCHO')->first();
 
-    $query = Scholar::where('program_id', $coschoProgram?->id)
+    $query = Scholar::where($coschoProgram?->id)
         ->with(['program', 'address', 'education.hei', 'education.course', 'academicYears.thesisGrant']);
 
     // ▼▼▼ ADD THIS NEW SEARCH BLOCK ▼▼▼

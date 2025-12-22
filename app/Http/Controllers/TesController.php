@@ -54,10 +54,7 @@ class TesController extends Controller
             ->pluck('name')->toArray();
     }
 
-    /**
-     * Centralized Query Builder (Adapted from TDP)
-     * ✅ Loads ALL relationships so the Grid isn't empty.
-     */
+
     public function getTesQuery(Request $request, string $searchKey = 'search'): Builder
     {
        $query = AcademicRecord::with([

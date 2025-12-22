@@ -1,157 +1,423 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { Button } from "@/components/ui/button";
+import { Printer } from "lucide-react";
 
-const CHED_LOGO_URL = '/images/ched-logo.png';
+// The path to your CHED logo inside the public folder
+const CHED_LOGO_PATH = '/chedlogo.png'; 
 
-// 1. Header now includes the official CHED logo.
-const OfficialHeader = () => (
-    <div className="flex flex-col items-center text-center mb-8 text-slate-800 dark:text-slate-300">
-                 <img src={CHED_LOGO_URL} alt="CHED Logo" className="h-20" />
+// --- 5. Smart Input Component (Memoized for Stability) ---
+// Define this outside the main component for best practice if possible, 
+// but we define it inside to ensure it can be used within the exported component structure
+const SmartInput = memo(({ 
+    value, 
+    field, 
+    placeholder, 
+    type = "text", 
+    className = "",
+    isSignature = false,
+    onChangeHandler // Stable handleChange function passed here
+}) => {
+    const baseClass = `
+        w-full bg-transparent outline-none px-1 h-6 text-sm transition-colors 
+        border-b border-gray-400 dark:border-gray-500 focus:border-indigo-600
+        dark:text-white font-serif 
+        ${isSignature ? 'border-b-2 border-black/80 dark:border-white/80 h-8 font-semibold uppercase' : ''}
+        ${className}
+    `;
 
-        <p className="text-sm">Republic of the Philippines</p>
-        <p className="font-bold text-slate-900 dark:text-slate-50">COMMISSION ON HIGHER EDUCATION</p>
-        <p className="font-semibold">REGIONAL OFFICE IX, ZAMBOANGA CITY</p>
-    </div>
-);
-
-const AppendixBForm = ({ user, onDataChange }) => {
-    // 2. State is updated to handle all the new fields.
-    const [formData, setFormData] = useState({
-        name: user?.name || '',
-        position: user?.position || '',
-        official_station: user?.official_station || 'CHEDRO-IX, Z.C.',
-        supervisor_name: 'MARIVIC V. IRIBERRI',
-        supervisor_designation: 'Officer In-Charge, Office of the Director IV',
-        date_signed_claimant: '',
-        date_signed_supervisor: '',
-
-        // New fields from the image
-        travel_order_no: '',
-        travel_order_date: '',
-        travel_condition: 'strictly', // Default value for the radio group
-        explanation: '',
-        attachments: {
-            certOfAppearance: true,
-            busTickets: false,
-            planeTickets: true,
-            boatTickets: false,
-            memorandum: true,
-            itinerary: true,
-        },
-    });
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prevState => ({ ...prevState, [name]: value }));
-    };
-    
-    // Handler for the radio group
-    const handleConditionChange = (value) => {
-        setFormData(prevState => ({ ...prevState, travel_condition: value }));
-    };
-
-    // Handler for the attachment checkboxes
-    const handleAttachmentChange = (name) => {
-        setFormData(prevState => ({
-            ...prevState,
-            attachments: {
-                ...prevState.attachments,
-                [name]: !prevState.attachments[name]
-            }
-        }));
-    };
-
-    useEffect(() => {
-        onDataChange(formData);
-    }, [formData, onDataChange]);
+    const inputHandler = (e) => {
+        // Use the stable onChangeHandler passed from the parent
+        onChangeHandler(field, e.target.value);
+    }
 
     return (
-        <div className="border border-slate-200 dark:border-slate-800 p-8 rounded-lg bg-white dark:bg-slate-950 shadow-md max-w-4xl mx-auto my-4">
-            <OfficialHeader />
-            <h2 className="text-xl font-bold text-center mb-6 text-slate-900 dark:text-slate-50">
-                Appendix B: Certificate of Travel Completed
-            </h2>
+        <input 
+            type={type} 
+            value={value}
+            onChange={inputHandler}
+            placeholder={placeholder}
+            className={baseClass}
+        />
+    );
+});
+
+
+export default function AppendixBForm({ user, onDataChange, initialData }) {
+    
+    // --- 1. STATE INITIALIZATION FOR APPENDIX 47 ---
+    const [formData, setFormData] = useState({
+        entity_name: initialData?.entity_name || 'Commission on Higher Education RO-IX',
+        fund_cluster: initialData?.fund_cluster || '01', 
+        
+        travel_order_no: initialData?.travel_order_no || 'N/A', 
+        travel_order_date: initialData?.travel_order_date || new Date().toISOString().split('T')[0],
+        
+        employee_signature_name: initialData?.employee_signature_name || user?.name || 'JOSEPH LOU C. STA TERESA',
+          position: initialData?.position || '', 
+        // Logic for 'travel_condition'
+        travel_condition: initialData?.travel_condition || 'Strictly in accordance with the approved itinerary',
+        
+        // Status Checkboxes (Visual State)
+        status_approved_itinerary: 'X', 
+        status_cut_short_refund_or_no: '',
+        status_cut_short_refund_date: '',
+        status_extended_deviation: '', 
+
+        explanation: initialData?.explanation || '',
+
+        // Checklist
+        checked_items: initialData?.checked_items || {
+            '1_certificate_of_appearance': 'X',
+            '5_memorandum': 'X',
+            '6_itinerary_of_travel': 'X',
+        },
+        
+        certified_by_name: initialData?.certified_by_name || 'MARIVIC V. IRIBERRI',
+        certified_by_position: initialData?.certified_by_position || 'Officer In-Charge, Office of the Director IV',
+    });
+
+
+    // --- 2. SYNC LOGIC (FIXED) ---
+    // Use a ref to store the latest onDataChange function without it being a dependency
+    const onDataChangeRef = useRef(onDataChange);
+    useEffect(() => {
+        onDataChangeRef.current = onDataChange;
+    }, [onDataChange]);
+    
+    // Use a separate useEffect to sync the data to the parent ONLY when formData changes
+   useEffect(() => {
+        // Prepare the payload exactly how the backend wants it
+        const payload = {
+            ...formData,
+            // Map the visual fields to the required 'name' and 'position' fields if missing
+            name: formData.employee_signature_name,
+           position: formData.position,
+            date_signed_claimant: new Date().toISOString().split('T')[0], // Auto-fill today's date
+        };
+        onDataChangeRef.current(payload); 
+    }, [formData]);
+
+    // --- 3. UNIVERSAL INPUT HANDLER (STABILIZED WITH useCallback) ---
+    const handleChange = useCallback((field, value) => {
+        // Direct update, relying on React's batching for stability
+        setFormData(prev => ({ ...prev, [field]: value }));
+    }, []); // Empty dependency array means this function never changes
+
+    // --- 4. CHECKBOX HANDLER (For nested 'checked_items') ---
+    const handleChecklistChange = useCallback((key, value) => {
+        setFormData(prev => ({
+            ...prev,
+            checked_items: {
+                ...prev.checked_items,
+                [key]: value
+            }
+        }));
+    }, []); // Empty dependency array means this function never changes
+
+    
+    // --- 6. Checkbox Component for Appendix 47 ---
+    const CheckboxInput = ({ checkedValue, field, isChecklist = false }) => {
+        // Toggles between checked value ('X') and unchecked ('')
+        const toggle = () => {
+            const newValue = checkedValue === 'X' ? '' : 'X';
             
-            <div className="grid md:grid-cols-2 gap-x-8 gap-y-4 mb-6">
-                <div className="space-y-2"><Label htmlFor="name">Name of Official/Employee</Label><Input id="name" name="name" value={formData.name} onChange={handleInputChange} /></div>
-                <div className="space-y-2"><Label htmlFor="position">Position</Label><Input id="position" name="position" value={formData.position} onChange={handleInputChange} /></div>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="official_station">Official Station</Label><Input id="official_station" name="official_station" value={formData.official_station} onChange={handleInputChange} /></div>
+            if (isChecklist) {
+                handleChecklistChange(field, newValue);
+            } else {
+                // Special handling for the cut short field to automatically populate placeholders
+                if (field === 'status_cut_short_refund_or_no') {
+                     handleChange('status_cut_short_refund_or_no', newValue === 'X' ? 'N/A' : ''); 
+                     handleChange('status_cut_short_refund_date', newValue === 'X' ? 'N/A' : ''); 
+                } else {
+                    handleChange(field, newValue);
+                }
+            }
+        };
+        
+        const baseClass = `w-4 h-4 border border-black dark:border-white flex items-center justify-center cursor-pointer bg-white dark:bg-zinc-900`;
+
+        return (
+            <div className={baseClass} onClick={toggle}>
+                {checkedValue === 'X' && (
+                    <span className="text-black dark:text-white text-xs font-bold">X</span>
+                )}
             </div>
+        );
+    };
 
-            <Separator className="my-8" />
+
+    return (
+        <div className={`flex flex-col items-center gap-6 p-8 print:p-0 transition-colors duration-300 w-full font-serif`}>
             
-            {/* 3. This whole section is new, based on your image. */}
-            <div className="space-y-6 text-slate-800 dark:text-slate-300">
-                <div className="flex flex-wrap items-center gap-4">
-                    <span>I hereby certify that I have completed the travel authorized in the Travel Order/Itinerary</span>
-                    <Input name="travel_order_no" placeholder="Travel No." value={formData.travel_order_no} onChange={handleInputChange} className="w-32" />
-                    <span>dated</span>
-                    <Input type="date" name="travel_order_date" value={formData.travel_order_date} onChange={handleInputChange} className="w-auto" />
-                    <span>under conditions indicated below:</span>
-                </div>
-
-                <RadioGroup value={formData.travel_condition} onValueChange={handleConditionChange} className="space-y-2">
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="strictly" id="strictly" /><Label htmlFor="strictly">Strictly in accordance with the approved itinerary.</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="cut_short" id="cut_short" /><Label htmlFor="cut_short">Cut short as explained below.</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="extended" id="extended" /><Label htmlFor="extended">Extended as explained below, additional itinerary was submitted.</Label></div>
-                    <div className="flex items-center space-x-2"><RadioGroupItem value="deviation" id="deviation" /><Label htmlFor="deviation">Other deviation as explained below.</Label></div>
-                </RadioGroup>
-
-                <div>
-                    <Label htmlFor="explanation">Explanation or Justifications:</Label>
-                    <Textarea name="explanation" id="explanation" value={formData.explanation} onChange={handleInputChange} className="mt-2" />
-                </div>
+            {/* --- TOOLBAR --- (Hidden on print) */}
+            <div className="flex gap-4 w-full max-w-[8.5in] justify-end print:hidden">
+                <Button onClick={() => window.print()} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-200">
+                    <Printer className="w-4 h-4" /> Print Form (Appendix 47)
+                </Button>
+            </div>
+            
+            {/* --- FORM CONTAINER (Paper Look - Appendix 47) --- */}
+            <div className="w-full max-w-[8.5in] bg-white text-black border-2 border-black shadow-xl p-8 relative print:shadow-none print:border-black dark:bg-zinc-900 dark:text-white text-base">
                 
-                <Separator />
-                
-                <div>
-                    <p className="font-semibold mb-4">Evidence of travel hereto attached: Please check:</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center space-x-2"><Checkbox id="certOfAppearance" checked={formData.attachments.certOfAppearance} onCheckedChange={() => handleAttachmentChange('certOfAppearance')} /><Label htmlFor="certOfAppearance">1. Certificate of Appearance</Label></div>
-                        <div className="flex items-center space-x-2"><Checkbox id="memorandum" checked={formData.attachments.memorandum} onCheckedChange={() => handleAttachmentChange('memorandum')} /><Label htmlFor="memorandum">5. Memorandum</Label></div>
-                        <div className="flex items-center space-x-2"><Checkbox id="busTickets" checked={formData.attachments.busTickets} onCheckedChange={() => handleAttachmentChange('busTickets')} /><Label htmlFor="busTickets">2. Bus tickets</Label></div>
-                        <div className="flex items-center space-x-2"><Checkbox id="itinerary" checked={formData.attachments.itinerary} onCheckedChange={() => handleAttachmentChange('itinerary')} /><Label htmlFor="itinerary">6. Itinerary of Travel</Label></div>
-                        <div className="flex items-center space-x-2"><Checkbox id="planeTickets" checked={formData.attachments.planeTickets} onCheckedChange={() => handleAttachmentChange('planeTickets')} /><Label htmlFor="planeTickets">3. Plane tickets</Label></div>
-                        <div className="flex items-center space-x-2"><Checkbox id="boatTickets" checked={formData.attachments.boatTickets} onCheckedChange={() => handleAttachmentChange('boatTickets')} /><Label htmlFor="boatTickets">4. Boat tickets</Label></div>
+                {/* --- OFFICIAL HEADER --- */}
+                <div className="flex justify-center items-start pt-4 relative">
+                    {/* Logo and Entity Name */}
+                    <div className="absolute left-0 top-0">
+                        <img 
+                            src={CHED_LOGO_PATH} 
+                            alt="CHED Logo" 
+                            className="w-16 h-16 object-contain print:w-12 print:h-12" 
+                        />
+                    </div>
+
+                    <div className="text-center leading-tight">
+                        <p className="text-xs font-semibold">Republic of the Philippines</p>
+                        <p className="text-sm font-semibold">Office of the President</p>
+                        <p className="text-lg font-extrabold text-red-700 dark:text-red-500">COMMISSION ON HIGHER EDUCATION</p>
+                        <p className="text-sm font-semibold">Region IX, Zamboanga Peninsula</p>
+                        <p className="text-sm">Zamboanga City</p>
+                    </div>
+
+                    {/* Appendix 47 Label */}
+                    <div className="absolute right-0 top-0 text-sm font-semibold">
+                        Appendix 47
                     </div>
                 </div>
-            </div>
-            
-            <div className="mt-12 flex justify-end">
-                <div className="w-full md:w-1/2 text-center">
-                    <p className="text-sm text-slate-700 dark:text-slate-400 mb-8">Respectfully submitted:</p>
-                    <div className="space-y-2 mb-8">
-                         <Label htmlFor="date_signed_claimant">Date Signed by Claimant</Label>
-                         <Input id="date_signed_claimant" type="date" name="date_signed_claimant" value={formData.date_signed_claimant} onChange={handleInputChange} className="w-1/2 mx-auto" />
+
+                {/* --- MAIN TITLE --- */}
+                <div className="text-center pt-8 pb-8">
+                    <h1 className="font-extrabold text-xl uppercase tracking-wider">
+                        Certificate of Travel Completed
+                    </h1>
+                </div>
+
+                {/* --- HEADER FIELDS --- */}
+                <div className="grid grid-cols-2 gap-4 pb-4 text-sm">
+                    <div className="flex items-center">
+                        <span className="font-semibold mr-2 w-24">Entity Name:</span>
+                        <SmartInput field="entity_name" value={formData.entity_name} className="flex-1 font-normal" onChangeHandler={handleChange} />
                     </div>
-                    <div className="border-b border-slate-900 dark:border-slate-400 w-full mt-16 mb-2"></div>
-                    <p className="text-sm text-slate-700 dark:text-slate-400">(Signature of Claimant)</p>
+                    <div className="flex items-center justify-end">
+                        <span className="font-semibold mr-2">Fund Cluster:</span>
+                        <SmartInput field="fund_cluster" value={formData.fund_cluster} className="w-24 text-center font-normal" onChangeHandler={handleChange} />
+                    </div>
                 </div>
+
+                {/* --- CERTIFICATION STATEMENT --- */}
+                <div className="pt-4 leading-relaxed text-sm">
+                    <p>I hereby certify that I have completed the travel authorized in the Travel Order/Itinerary <SmartInput isSignature={true} field="employee_signature_name" value={formData.employee_signature_name} className="inline-block w-96 text-center text-sm" onChangeHandler={handleChange} /> </p>
+                    <p className="mt-2">
+                        {/* FIX: Mapped to travel_order_no */}
+                        Travel No. <SmartInput field="travel_order_no" value={formData.travel_order_no} className="inline-block w-40 text-center text-sm" onChangeHandler={handleChange} /> 
+                        {/* FIX: Mapped to travel_order_date */}
+                        dated <SmartInput field="travel_order_date" value={formData.travel_order_date} className="inline-block w-24 text-center text-sm" onChangeHandler={handleChange} /> under conditions indicated below:
+                    </p>
+                    {/* Status Checkboxes */}
+                    <div className="pl-4 pt-4 space-y-3">
+                        {/* 1. Strictly in accordance */}
+                        <div className="flex items-center space-x-2">
+                            <CheckboxInput 
+                                checkedValue={formData.status_approved_itinerary} 
+                                field="status_approved_itinerary" 
+                            />
+                            <p>Strictly in accordance with the approved itinerary.</p>
+                        </div>
+
+                        {/* 2. Cut short / Refund */}
+                        <div className="flex items-center space-x-2">
+                            <CheckboxInput 
+                                checkedValue={formData.status_cut_short_refund_or_no ? 'X' : ''} 
+                                field="status_cut_short_refund_or_no" 
+                            />
+                            <p>
+                                Cut short as explained below. Excess in payment in the amount of 
+                                <span className="inline-block mx-2 border-b border-black dark:border-white w-24"></span> was refunded on O.R. No. 
+                                <SmartInput field="status_cut_short_refund_or_no" value={formData.status_cut_short_refund_or_no} className="inline-block w-24 text-center text-sm" onChangeHandler={handleChange} />
+                            </p>
+                        </div>
+                        <div className="pl-6">
+                            <p>
+                                dated <SmartInput field="status_cut_short_refund_date" value={formData.status_cut_short_refund_date} className="inline-block w-24 text-center text-sm" onChangeHandler={handleChange} />
+                            </p>
+                        </div>
+                        
+                        {/* 3. Extended / Deviation */}
+                        <div className="flex items-center space-x-2 pt-3">
+                            <CheckboxInput 
+                                checkedValue={formData.status_extended_deviation} 
+                                field="status_extended_deviation" 
+                            />
+                            <p>Extended as explained below, additional itinerary was submitted</p>
+                        </div>
+                        <div className="pl-6">
+                            <p>Other deviation as explained below.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- EXPLANATION/JUSTIFICATION --- */}
+                <div className="pt-6">
+                    <p className="text-sm font-bold mb-1">Explanation or Justifications:</p>
+                    <div className="border border-black dark:border-white h-12 p-1">
+                        <SmartInput field="explanation" value={formData.explanation} className="h-full border-none p-0 text-sm" placeholder="Enter explanation here..." onChangeHandler={handleChange} />
+                    </div>
+                </div>
+
+                {/* --- EVIDENCE CHECKLIST --- */}
+                <div className="pt-8 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p className="font-bold mb-2">Evidence of travel hereto attached:</p>
+                        <p className="font-bold mb-1">Please check:</p>
+
+                        <div className="space-y-1">
+                            {/* Checklist Column 1 */}
+                            {[
+                                { num: '1.', label: 'Certificate of Appearance', field: '1_certificate_of_appearance' },
+                                { num: '2.', label: 'Bus tickets', field: '2_bus_tickets' },
+                                { num: '3.', label: 'Plane tickets', field: '3_plane_tickets' },
+                                { num: '4.', label: 'Boat tickets', field: '4_boat_tickets' },
+                            ].map(item => (
+                                <div key={item.num} className="flex items-center">
+                                    <CheckboxInput 
+                                        checkedValue={formData.checked_items[item.field]} 
+                                        field={item.field} 
+                                        isChecklist={true}
+                                    />
+                                    <span className="ml-2 w-8 text-right">{item.num}</span>
+                                    <span className="ml-2">{item.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pt-10">
+                        <div className="space-y-1">
+                            {/* Checklist Column 2 */}
+                            {[
+                                { num: '5.', label: 'Memorandum', field: '5_memorandum' },
+                                { num: '6.', label: 'Itinerary of Travel', field: '6_itinerary_of_travel' },
+                                { num: '7.', label: 'Travel Report', field: '7_travel_report' },
+                            ].map(item => (
+                                <div key={item.num} className="flex items-center">
+                                    <CheckboxInput 
+                                        checkedValue={formData.checked_items[item.field]} 
+                                        field={item.field} 
+                                        isChecklist={true}
+                                    />
+                                    <span className="ml-2 w-8 text-right">{item.num}</span>
+                                    <span className="ml-2">{item.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- SIGNATURES --- */}
+                <div className="mt-12">
+                    
+                    {/* Employee Signature */}
+                    <div className="text-right mb-12">
+                        <p className="text-sm font-semibold mb-2">Respectfully submitted:</p>
+                        <div className="inline-block w-80 text-center">
+                            <SmartInput 
+                                field="employee_signature_name"
+                                value={formData.employee_signature_name}
+                                className="w-full text-center uppercase text-sm"
+                                isSignature={true}
+                                onChangeHandler={handleChange} 
+                            />
+                            {/* FIX: POSITION INPUT - EMPTY BY DEFAULT */}
+                           <SmartInput 
+                                field="position"
+                                value={formData.position}
+                                className="w-full text-center text-xs mt-1"
+                                placeholder="Enter Position"
+                                onChangeHandler={handleChange} 
+                            />
+                            <p className="text-xs text-center pt-1">
+                                Employee
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Final Certification */}
+                    <p className="text-sm italic mb-4">
+                        On evidence and information of which I have knowledge, the travel was actually undertaken.
+                    </p>
+
+                    {/* Approving Officer Signature */}
+                    <div className="flex justify-end mt-12">
+                        <div className="w-96">
+                            <SmartInput 
+                                field="certified_by_name"
+                                value={formData.certified_by_name}
+                                className="w-full text-center uppercase text-base"
+                                isSignature={true}
+                                onChangeHandler={handleChange} 
+                            />
+                            <SmartInput 
+                                field="certified_by_position"
+                                value={formData.certified_by_position}
+                                className="w-full text-center text-sm mt-1"
+                                isSignature={true}
+                                onChangeHandler={handleChange} 
+                            />
+                            <p className="text-xs text-center mt-1">
+                                Signature over Printed Name and Official Designation
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
 
-            <Separator className="my-8" />
+            {/* Print Styles */}
+            <style>{`
+                @media print {
+                    @page { margin: 0.5in; }
+                    
+                    /* Force black/white/serif for document printing */
+                    body, .dark, .dark * {
+                        -webkit-print-color-adjust: exact !important; 
+                        color: black !important;
+                        background: white !important;
+                        font-family: 'Times New Roman', Times, serif !important; 
+                        box-shadow: none !important;
+                        border-color: black !important;
+                        font-size: 11pt;
+                    }
+                    
+                    /* Reset all digital borders/shadows/rings */
+                    .shadow-xl, .dark .shadow-xl { box-shadow: none !important; border: 2px solid black !important; }
+                    
+                    input, select {
+                        border: none !important;
+                        outline: none !important;
+                        padding: 0 !important;
+                        color: black !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        text-align: inherit !important;
+                        min-height: auto !important;
+                        height: auto !important;
+                        border-bottom: 1px solid black !important; /* Retain the input line */
+                    }
 
-            <p className="leading-relaxed text-center text-slate-800 dark:text-slate-300">
-                <strong>I HEREBY CERTIFY</strong> that the official named above has completed the travel as stated.
-            </p>
+                    /* Use black for all visible grid lines */
+                    .border-black, .border-zinc-700, .border-gray-400, .border-dashed, .border-black\\/50, .dark .border-white\\/50 {
+                        border-color: black !important;
+                    }
+                    
+                    /* Hide action buttons on print */
+                    .print\\:hidden { display: none !important; }
 
-             <div className="mt-12 flex justify-end">
-                <div className="w-full md:w-1/2 text-center space-y-4">
-                    <div className="space-y-2"><Label htmlFor="date_signed_supervisor">Date Signed by Supervisor</Label><Input id="date_signed_supervisor" type="date" name="date_signed_supervisor" value={formData.date_signed_supervisor} onChange={handleInputChange} className="w-1/2 mx-auto" /></div>
-                    <div className="border-b border-slate-900 dark:border-slate-400 w-full mt-16 mb-2"></div>
-                    <p className="text-sm font-bold uppercase text-slate-900 dark:text-slate-50">{formData.supervisor_name}</p>
-                    <p className="text-xs text-slate-700 dark:text-slate-400">{formData.supervisor_designation}</p>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-300">(Signature of Immediate Supervisor)</p>
-                </div>
-            </div>
-
+                    /* Hide native date/time icons */
+                    input[type="date"]::-webkit-calendar-picker-indicator {
+                        display: none;
+                    }
+                }
+            `}</style>
         </div>
     );
-};
-
-export default AppendixBForm;
+}

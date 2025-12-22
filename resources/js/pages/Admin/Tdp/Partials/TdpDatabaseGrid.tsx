@@ -1,8 +1,6 @@
 // resources/js/pages/Admin/Tdp/Partials/TdpDatabaseGrid.tsx
 
-import 'handsontable/styles/handsontable.css';
-import 'handsontable/styles/ht-theme-main.css';
-import 'handsontable/styles/ht-theme-horizon.css';
+
 
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

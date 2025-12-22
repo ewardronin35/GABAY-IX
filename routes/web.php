@@ -30,21 +30,82 @@ use App\Http\Controllers\FinancialRequestController;
 use App\Http\Controllers\UnifastRc\ValidationController;
 use App\Http\Controllers\BillingRecordController; // <-- Add this at the top
 use App\Http\Controllers\TravelOrderController; // <-- ADD THIS LINE
-use App\Http\Controllers\TravelRequestController; // <-- ADD THIS LINE
-use App\Http\Controllers\TravelController; // <-- ADD THIS LINE
 
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
 Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback'])->name('socialite.callback');
 
 
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-*/
 
 
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    
+Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // --- Utilities ---
+    Route::post('/itineraries', [ItineraryController::class, 'store']);
+    Route::post('/uploads/process', [UploadController::class, 'process']);
+    Route::delete('/uploads/revert', [UploadController::class, 'revert']);
+
+    // --- Financial Requests ---
+    Route::post('/financial-request', [FinancialRequestController::class, 'store'])->name('financial.store');
+    Route::get('/financial-requests', [FinancialRequestController::class, 'index'])->name('financial.index');
+    Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
+    Route::patch('/billing-records/{billingRecord}', [BillingRecordController::class, 'update'])->name('billing-records.update');
+
+    // ==============================================================================
+    //  TRAVEL MANAGEMENT ROUTES
+    // ==============================================================================
+
+    // 1. GENERAL ROUTES (Accessible by Staff, Chief, RD)
+    // ------------------------------------------------------------------------------
+    
+    // My Requests List
+    Route::get('/travel-orders', [TravelOrderController::class, 'index'])->name('travel-orders.index');
+    
+    // ✨ APPROVALS QUEUE (Moved here to fix 404)
+    // The Controller handles logic: "If Chief, show pending. If Staff, show empty."
+Route::get('/travel-orders/approvals', [TravelOrderController::class, 'approvals'])->name('travel-orders.approvals');
+    // Creation
+    Route::get('/travel/request', [TravelOrderController::class, 'create'])->name('travel-orders.create');
+    Route::post('/travel/request', [TravelOrderController::class, 'store'])->name('travel-orders.store');
+
+    // Viewing Details (Required for Approvers to see the doc)
+    Route::get('/travel-orders/{id}', [TravelOrderController::class, 'show'])->name('travel-orders.show');
+
+    // Printing
+    Route::get('/travel-orders/{id}/print-memo', [TravelOrderController::class, 'printMemo'])->name('travel-orders.print-memo');
+    Route::get('/travel-orders/{id}/print-authority', [TravelOrderController::class, 'printAuthority'])->name('travel-orders.print-authority');
+Route::post('/api/travel-claims/verify', [TravelClaimController::class, 'verifyCode']);
+    
+    // 2. CHIEF EPS ACTIONS (Protected Actions Only)
+    // ------------------------------------------------------------------------------
+    Route::middleware(['role:Chief Education Program Specialist'])->group(function () {
+        // ✨ FIXED NAME: 'chief-endorse' to match React
+        Route::post('/travel-orders/{id}/endorse', [TravelOrderController::class, 'endorse'])
+            ->name('travel-orders.chief-endorse'); 
+            
+        Route::post('/travel-orders/{id}/reject-chief', [TravelOrderController::class, 'reject'])
+            ->name('travel-orders.chief-reject');
+    });
+
+
+    // --- 3. REGIONAL DIRECTOR ACTIONS (Protected) ---
+    Route::middleware(['role:RD|Regional Director'])->group(function () {
+        // ✨ FIXED NAME: 'rd-approve'
+        Route::post('/travel-orders/{id}/final-approve', [TravelOrderController::class, 'finalApprove'])
+            ->name('travel-orders.rd-approve');
+            
+        Route::post('/travel-orders/{id}/reject-rd', [TravelOrderController::class, 'reject'])
+            ->name('travel-orders.rd-reject');
+    });
+
+    // --- Travel Claims / Reimbursements ---
+    Route::get('/travel-claims/create', [TravelClaimController::class, 'create'])->name('travel-claims.create'); 
+    Route::resource('travel-claims', TravelClaimController::class)->except(['create']);
+
+});
 
 
 Route::middleware(['auth', 'verified'])->prefix('superadmin')->name('superadmin.')->group(function () {
@@ -286,28 +347,6 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
-    Route::post('/itineraries', [ItineraryController::class, 'store']);
-    Route::post('/uploads/process', [UploadController::class, 'process']);
-Route::delete('/uploads/revert', [UploadController::class, 'revert']);
-    Route::post('/financial-request', [FinancialRequestController::class, 'store'])->name('financial.store');
-Route::get('/financial-requests', [FinancialRequestController::class, 'index'])->name('financial.index');
-Route::get('/financial-requests/{financialRequest}', [FinancialRequestController::class, 'show'])->name('financial.show');
-Route::patch('/billing-records/{billingRecord}', [BillingRecordController::class, 'update'])->name('billing-records.update');
-Route::get('/travel/request/create', [TravelRequestController::class, 'create'])->name('travel.requests.create');
-    Route::post('/travel/request', [TravelRequestController::class, 'store'])->name('travel.requests.store');
-      Route::get('/travel/request', [TravelOrderController::class, 'create'])->name('travel-orders.create');
-    Route::post('/travel/request', [TravelOrderController::class, 'store'])->name('travel-orders.store');
-Route::get('/travel/create', [TravelController::class, 'create'])->name('travel.create');
-    
-    Route::get('/travel-claims', [TravelClaimController::class, 'create'])
-    ->name('travel-claims.create');
-    Route::resource('travel-claims', TravelClaimController::class);
-Route::post('/travel/store', [TravelController::class, 'store'])->name('travel.store');
-});
 
 Route::middleware(['auth', 'role:Accounting'])->prefix('accounting')->name('accounting.')->group(function () {
     
