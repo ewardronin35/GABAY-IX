@@ -323,7 +323,7 @@ const AIChatbot = () => {
     const getBotResponse = async (history: MessageType[]) => {
         setIsLoading(true);
 
-        const systemPrompt = `You are "Gabby", a friendly AI assistant for the FORTIS Scholarship Portal. Your goal is to provide concise, accurate answers. Knowledge base:\n- About: The FORTIS system is CHED - Region IX's official platform to streamline scholarship applications in the Zamboanga Peninsula.\n- Application: 1. Create Account. 2. Complete form & upload documents. 3. Track status on your dashboard.\n- Eligibility: Advise users to go to the main page to find the 'Track Your Application' section.\n- Developer: The lead developer is Eduard Roland P. Donor. Keep answers friendly and brief.`;
+        const systemPrompt = `You are "Gabby", a friendly AI assistant for the BRIDGE Scholarship Portal. Your goal is to provide concise, accurate answers. Knowledge base:\n- About: The BRIDGE system is CHED - Region IX's official platform to streamline scholarship applications in the Zamboanga Peninsula.\n- Application: 1. Create Account. 2. Complete form & upload documents. 3. Track status on your dashboard.\n- Eligibility: Advise users to go to the main page to find the 'Track Your Application' section.\n- Developer: The lead developer is Eduard Roland P. Donor. Keep answers friendly and brief.`;
         
         // Convert our message state to the format the API needs
         const apiHistory = history.map(msg => ({
@@ -473,7 +473,7 @@ const itemVariants: Variants = {
 };
 
     const testimonials = [
-        { quote: "FORTIS didn't just fund my education; it invested in my future. I'm forever grateful.", author: "Maria S., BS Information Technology", avatar: "https://i.pravatar.cc/150?img=1" },
+        { quote: "BRIDGE didn't just fund my education; it invested in my future. I'm forever grateful.", author: "Maria S., BS Information Technology", avatar: "https://i.pravatar.cc/150?img=1" },
         { quote: "The application was so simple and the team was incredibly supportive throughout the process.", author: "John D., BS Engineering", avatar: "https://i.pravatar.cc/150?img=3" },
         { quote: "Being part of this community of scholars has opened so many doors for me. Thank you!", author: "Aisha K., BS Nursing", avatar: "https://i.pravatar.cc/150?img=5" },
         { quote: "A life-changing opportunity that made my college dreams a reality.", author: "Leo G., BS Agriculture", avatar: "https://i.pravatar.cc/150?img=7" },
@@ -481,7 +481,7 @@ const itemVariants: Variants = {
     
     const announcements = [
         { date: '2025-09-15', title: 'Application Period for A.Y. 2026-2027 Now Open!', content: 'We are officially accepting applications for the upcoming academic year. The deadline for submissions is January 31, 2026.'},
-        { date: '2025-09-10', title: 'System Maintenance Scheduled', content: 'The FORTIS portal will be temporarily unavailable on September 20, 2025, from 1:00 AM to 3:00 AM for system upgrades.'},
+        { date: '2025-09-10', title: 'System Maintenance Scheduled', content: 'The BRIDGE portal will be temporarily unavailable on September 20, 2025, from 1:00 AM to 3:00 AM for system upgrades.'},
         { date: '2025-09-01', title: 'Congratulations to our New Scholars!', content: 'A warm welcome to the new batch of CHED-R9 scholars! Please check your dashboards for the orientation schedule.'},
     ];
 
@@ -495,7 +495,7 @@ const itemVariants: Variants = {
                 <div className="container mx-auto flex items-center justify-between p-4">
                     <a href="#hero-section" className="flex items-center gap-2 cursor-pointer">
             <img src="/images/Logo.png" alt="FORTIS Logo" className="h-8 w-8" />
-            <span className="font-bold text-slate-900 dark:text-white text-xl tracking-tight">FORTIS</span>
+            <span className="font-bold text-slate-900 dark:text-white text-xl tracking-tight">BRIDGE</span>
         </a>
 <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
             <a href="#about-section" className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition">
@@ -578,7 +578,7 @@ const itemVariants: Variants = {
                 
                 <motion.section id="about-section" className="py-24 sm:py-32" variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }}>
                     <div className="container mx-auto px-6">
-                        <div className="text-center"><h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">Empowering Dreams Through Education</h2><p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 dark:text-slate-400">The <strong>FORTIS</strong> system is a landmark initiative by CHED - Region IX to bridge the gap between deserving students and transformative educational opportunities.</p></div>
+                        <div className="text-center"><h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">Empowering Dreams Through Education</h2><p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 dark:text-slate-400">The <strong>BRIDGE</strong> system is a landmark initiative by CHED - Region IX to bridge the gap between deserving students and transformative educational opportunities.</p></div>
                         <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
                             <motion.div variants={itemVariants}><div className="text-5xl font-bold text-cyan-600 dark:text-cyan-400">1,500+</div><p className="mt-2 text-slate-500 dark:text-slate-400">Active Scholars</p></motion.div>
                             <motion.div variants={itemVariants}><div className="text-5xl font-bold text-cyan-600 dark:text-cyan-400">50+</div><p className="mt-2 text-slate-500 dark:text-slate-400">Partner Institutions</p></motion.div>
@@ -631,7 +631,7 @@ const itemVariants: Variants = {
                 
                 <motion.section id="testimonials-section" className="py-24 sm:py-32" variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}>
                     <div className="container mx-auto px-6">
-                        <div className="text-center mb-16"><h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">Stories from Our Scholars</h2><p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 dark:text-slate-400">Hear from students whose lives have been changed through the FORTIS program.</p></div>
+                        <div className="text-center mb-16"><h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">Stories from Our Scholars</h2><p className="mt-4 max-w-2xl mx-auto text-lg text-slate-600 dark:text-slate-400">Hear from students whose lives have been changed through the BRIDGE program.</p></div>
                         <div className="relative max-w-4xl mx-auto">
                             <div className="overflow-hidden relative h-80">
                                 <AnimatePresence initial={false}>
@@ -639,7 +639,7 @@ const itemVariants: Variants = {
                                         <p className="text-lg italic text-center text-slate-700 dark:text-slate-300">"{testimonials[currentTestimonial].quote}"</p>
                                         <div className="flex items-center mt-6">
                                             <img className="h-14 w-14 rounded-full" src={testimonials[currentTestimonial].avatar} alt={testimonials[currentTestimonial].author}/>
-                                            <div className="ml-4 text-left"><div className="font-semibold text-slate-900 dark:text-white">{testimonials[currentTestimonial].author}</div><div className="text-slate-500 dark:text-slate-400 text-sm">FORTIS Scholar</div></div>
+                                            <div className="ml-4 text-left"><div className="font-semibold text-slate-900 dark:text-white">{testimonials[currentTestimonial].author}</div><div className="text-slate-500 dark:text-slate-400 text-sm">BRIDGE Scholar</div></div>
                                         </div>
                                     </motion.div>
                                 </AnimatePresence>
@@ -661,7 +661,7 @@ const itemVariants: Variants = {
         <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
                 <img src="/images/Logo.png" alt="FORTIS Logo" className="h-10 w-10" />
-                <span className="font-bold text-white text-2xl tracking-tight">FORTIS</span>
+                <span className="font-bold text-white text-2xl tracking-tight">BRIDGE</span>
             </div>
             <p className="text-sm max-w-md">
                 The FORTIS system is CHED - Region IX's official platform to streamline scholarship applications and empower students in the Zamboanga Peninsula.
@@ -707,7 +707,7 @@ const itemVariants: Variants = {
     {/* Copyright Bar */}
     <div className="container mx-auto text-center border-t border-slate-700 pt-8 mt-12">
         <p className="text-sm">
-            &copy; {new Date().getFullYear()} FORTIS Scholarship Management System. All rights reserved.
+            &copy; {new Date().getFullYear()} BRIDGE Scholarship Management System. All rights reserved.
         </p>
         <p className="text-xs mt-2">
             Developed by CHED - Region IX.

@@ -84,7 +84,7 @@ const AuthSplitLayout = ({ children, title, description, logoSrc, toggleTheme, t
                 </motion.div>
                 <motion.a href="/" className="relative z-20 flex items-center text-lg font-medium gap-3" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
                     <img src={logoSrc} alt="G.A.B.AY. IX Logo" className="h-10 w-10"/>
-                    <span className="drop-shadow-md">FORTIS</span>
+                    <span className="drop-shadow-md">BRIDGE</span>
                 </motion.a>
                 <motion.div className="relative z-20 mt-auto" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
                     <div className="bg-black/20 p-6 rounded-lg backdrop-blur-sm border border-white/10 shadow-lg">
