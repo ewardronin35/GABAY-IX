@@ -3,36 +3,7 @@ import { type AxiosInstance } from 'axios';
 import { type route as routeFn } from 'ziggy-js';
 import { type LucideIcon } from 'lucide-react';
 import { Echo } from 'laravel-echo';
-// resources/js/types/index.ts
 
-import { LucideIcon } from 'lucide-react';
-
-export interface User {
-    id: number;
-    name: string;
-    email: string;
-    avatar_url?: string;
-    email_verified_at: string;
-    roles: string[];
-}
-
-export interface SharedData {
-    auth: {
-        user: User;
-    };
-    [key: string]: any;
-}
-
-export interface NavItem {
-    title: string;
-    href: string;
-    icon?: LucideIcon;
-}
-
-export interface BreadcrumbItem {
-    title: string;
-    href: string;
-}
 // --- GLOBAL ---
 
 declare global {
@@ -120,6 +91,7 @@ export type PageProps<T extends Record<string, unknown> = Record<string, unknown
     flash?: {
         success?: string;
         error?: string;
+        warning?: string;
     };
     ziggy: Config & { location: string; query: { tab?: string } };
     [key: string]: unknown;

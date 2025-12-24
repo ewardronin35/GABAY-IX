@@ -46,6 +46,9 @@ export default ({ children, breadcrumbs, ...props }: AppLayoutProps) => {
         if (flash?.error) {
             toast.error('Error', { description: flash.error });
         }
+        if (flash?.warning) {
+            toast.warning('Warning', { description: flash.warning });
+        }
     }, [flash]); 
 
     // --- NEW Real-time Event Listener Hook ---
