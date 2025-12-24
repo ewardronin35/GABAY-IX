@@ -117,9 +117,11 @@ export default function Index(props: TdpPageProps) {
                                 </TabsTrigger>
                                 
                                 {/* This Trigger just acts as a button to redirect */}
+                                {/* This Trigger just acts as a button to redirect */}
                                 <TabsTrigger value="validation" className="px-3 flex-1 md:flex-none">
                                     <FileCheck className="w-4 h-4 mr-2" /> Validation
                                 </TabsTrigger>
+
 
                                 <TabsTrigger value="database" className="px-3 flex-1 md:flex-none">
                                     <List className="w-4 h-4 mr-2" /> Database

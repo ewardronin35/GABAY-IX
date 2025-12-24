@@ -12,10 +12,7 @@ class Scholar extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     * These fields represent the core, stable information about the scholar.
-     */
+ 
     protected $fillable = [
         'program_id', // e.g., "Tertiary Education Subsidy"
         'family_name',
@@ -80,5 +77,30 @@ public function enrollments()
 public function programs()
 {
     return $this->belongsToMany(Program::class, 'scholar_enrollments');
+}
+
+public function records()
+{
+    return $this->hasManyThrough(
+        AcademicRecord::class,
+        ScholarEnrollment::class,
+        'scholar_id',           // Foreign key on scholar_enrollments table
+        'scholar_enrollment_id', // Foreign key on academic_records table
+        'id',                   // Local key on scholars table
+        'id'                    // Local key on scholar_enrollments table
+    );
+}
+// REMOVE or FIX the 'program()' relationship if it doesn't exist on the scholars table!
+// If you want to access the program easily, you can define a "Has One Through" relationship:
+public function latestProgram()
+{
+    return $this->hasOneThrough(
+        Program::class, 
+        ScholarEnrollment::class, 
+        'scholar_id',    // Foreign key on scholar_enrollments table
+        'id',            // Foreign key on programs table
+        'id',            // Local key on scholars table
+        'program_id'     // Local key on scholar_enrollments table
+    );
 }
 }

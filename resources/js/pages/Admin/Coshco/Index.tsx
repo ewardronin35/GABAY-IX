@@ -23,7 +23,6 @@ import { Database, FileText, List, Upload } from 'lucide-react'; // Added Upload
 import CoschoGrid from './Partials/CoschoGrid';
 import { ReportGenerator } from './Partials/ReportGenerator';
 import { MasterlistGrid } from './Partials/MasterlistGrid';
-import { OfficialHeader } from './Partials/OfficialHeader';
 
 // Register FilePond plugin
 registerPlugin(FilePondPluginFileValidateType);
@@ -41,7 +40,7 @@ const getInitialThemeClass = (): string => {
     return 'ht-theme-horizon';
 };
 
-export default function StufapIndex({ auth, scholars, allRegions, allHeis, filters }: PageProps<{ scholars: ScholarPaginator, allRegions: string[], allHeis: string[], filters: { region?: string, hei?: string } }>) {
+export default function CoshcoIndex({ auth, scholars, allRegions, allHeis, filters }: PageProps<{ scholars: ScholarPaginator, allRegions: string[], allHeis: string[], filters: { region?: string, hei?: string } }>) {
         const [tableClassName, setTableClassName] = useState(getInitialThemeClass());
 
     useEffect(() => {
@@ -56,24 +55,22 @@ export default function StufapIndex({ auth, scholars, allRegions, allHeis, filte
         return () => observer.disconnect();
     }, []);
 
-    if (!scholars || !scholars.data) {
+  if (!scholars || !scholars.data) {
         return (
-             <AuthenticatedLayout user={auth.user!}>
-                <Head title="StuFAPs" />
+             <AuthenticatedLayout user={auth.user!} page_title="COSCHO Scholars">
+                <Head title="COSHCO Scholars" />
                 <div className="p-8">Loading or no data available...</div>
             </AuthenticatedLayout>
         );
     }
-    
-    return (
-        <AuthenticatedLayout user={auth.user!}>
-            <Head title="StuFAPs" />
-            <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-                <OfficialHeader /> {/* Header is now above the tabs */}
 
+    return (
+<AuthenticatedLayout user={auth.user!} page_title="COSCHO Scholars">            <Head title="COSCHO Scholars" />
+            <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
+            <div className="mb-4"> COSHCO Scholars Database </div>
                 <Tabs defaultValue="coscho" className="space-y-4">
                     <TabsList>
-                        <TabsTrigger value="coscho"><Database className="w-4 h-4 mr-2" /> COSCHO Database</TabsTrigger>
+                        <TabsTrigger value="coscho"><Database className="w-4 h-4 mr-2" /> Database</TabsTrigger>
                         <TabsTrigger value="masterlist"><List className="w-4 h-4 mr-2" /> Masterlist</TabsTrigger>
                         <TabsTrigger value="report"><FileText className="w-4 h-4 mr-2" /> Report Generator</TabsTrigger>
                         {/* ✅ NEW IMPORT TAB */}
@@ -92,15 +89,12 @@ export default function StufapIndex({ auth, scholars, allRegions, allHeis, filte
         />
     </TabsContent>
 
-                    {/* ✅ MASTERLIST TAB */}
                     <TabsContent value="masterlist" className="space-y-4">
-                        {/* ▼▼▼ REMOVE PROPS FROM MASTERLISTGRID ▼▼▼ */}
                         <MasterlistGrid />
-                        {/* ▲▲▲ COMPONENT IS NOW SELF-CONTAINED ▲▲▲ */}
                     </TabsContent>
-                    {/* ✅ REPORT GENERATOR TAB */}
-                    <TabsContent value="report" className="space-y-4">
+                   <TabsContent value="report" className="space-y-4">
                        <div className="p-6 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
+                            {/* Error 3: This call is correct, but see the note below to fix the partial file */}
                             <ReportGenerator scholars={scholars.data} />
                        </div>
                     </TabsContent>

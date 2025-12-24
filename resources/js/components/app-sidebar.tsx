@@ -325,7 +325,7 @@ const cashierNavItems: NavItem[] = [
                 isActive: route().current('travel-orders.index'),
             },
             {
-                title: 'Create Request', // The 3-Step Wizard
+                title: 'Create Travel Order', // The 3-Step Wizard
                 href: route('travel-orders.create'),
                 isActive: route().current('travel-orders.create'),
             },

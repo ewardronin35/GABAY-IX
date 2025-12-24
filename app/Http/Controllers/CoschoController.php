@@ -29,7 +29,7 @@ public function masterlistData(Request $request) // ✅ Add Request $request
         $coschoProgram = Program::where('program_name', 'COSCHO')->first();
 
         // ▼▼▼ MODIFIED QUERY BLOCK ▼▼▼
-        $query = Scholar::where($coschoProgram?->id)
+       $query = Scholar::where('program_id', $coschoProgram?->id)
             ->with(['address', 'education.hei', 'education.course', 'academicYears']);
 
         // Add server-side search functionality
@@ -47,7 +47,7 @@ public function masterlistData(Request $request) // ✅ Add Request $request
             });
         });
 
-        // Paginate the results instead of getting all of them
+        // P            aginate the results instead of getting all of them
         $paginatedScholars = $query->orderBy('family_name', 'asc')->paginate(15); // Paginate 15 per page
         // ▲▲▲ END OF MODIFIED BLOCK ▲▲▲
 
@@ -145,34 +145,40 @@ public function import(Request $request) // Can return JsonResponse or RedirectR
 
 public function index(Request $request): Response
 {
+    // 1. Get the COSCHO Program ID
     $coschoProgram = Program::where('program_name', 'COSCHO')->first();
 
-    $query = Scholar::where($coschoProgram?->id)
-        ->with(['program', 'address', 'education.hei', 'education.course', 'academicYears.thesisGrant']);
+    // 2. FIX: Use 'whereHas' on the 'records' relationship
+    // This translates to: "Give me Scholars where exists a Record with program_id = COSCHO"
+    $query = Scholar::with(['program', 'address', 'education.hei', 'education.course', 'academicYears.thesisGrant'])
+        ->whereHas('records', function($q) use ($coschoProgram) {
+             // Make sure 'records' table has 'program_id'
+            $q->where('program_id', $coschoProgram->id);
+        });
 
-    // ▼▼▼ ADD THIS NEW SEARCH BLOCK ▼▼▼
+    // --- Search Block (Unchanged) ---
     $query->when($request->input('search'), function ($q, $search) {
         return $q->where(function($subQ) use ($search) {
             $subQ->where('family_name', 'LIKE', "%{$search}%")
                  ->orWhere('given_name', 'LIKE', "%{$search}%")
-                 ->orWhereHas('academicYears', function ($ayQuery) use ($search) {
-    $ayQuery->where('award_number', 'LIKE', "%{$search}%");
-})
+                 // Fix: Search inside 'records' for award number if that's where it lives
+                 ->orWhereHas('records', function ($recQuery) use ($search) {
+                     $recQuery->where('award_number', 'LIKE', "%{$search}%");
+                 })
                  ->orWhereHas('education.hei', function ($heiQuery) use ($search) {
                      $heiQuery->where('hei_name', 'LIKE', "%{$search}%");
                  });
         });
     });
-    // ▲▲▲ END of new search block ▲▲▲
 
-    // Existing filter for region
+    // --- Region Filter (Unchanged) ---
     $query->when($request->input('region'), function ($q, $region) {
         if ($region !== 'all') {
             return $q->whereHas('address', fn($subQ) => $subQ->where('region', 'LIKE', $region));
         }
     });
 
-    // Existing filter for HEI
+    // --- HEI Filter (Unchanged) ---
     $query->when($request->input('hei'), function ($q, $hei) {
         if ($hei !== 'all') {
             return $q->whereHas('education.hei', fn($subQ) => $subQ->where('hei_name', 'LIKE', $hei));
@@ -190,7 +196,7 @@ public function index(Request $request): Response
         'scholars' => $scholars,
         'allRegions' => $allRegions,
         'allHeis' => $allHeis,
-        'filters' => $request->only(['region', 'hei', 'search']), // 👈 Add 'search' to the filters prop
+        'filters' => $request->only(['region', 'hei', 'search']),
     ]);
 }
     /**

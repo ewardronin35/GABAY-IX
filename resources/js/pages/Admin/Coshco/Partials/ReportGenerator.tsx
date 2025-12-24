@@ -7,9 +7,10 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { toPng } from 'html-to-image';
-
-export function ReportGenerator() {
-    const [stats, setStats] = useState<any>(null);
+interface ReportGeneratorProps {
+    scholars: any[]; // You can replace 'any' with a more specific Scholar type if you have one
+}
+export const ReportGenerator = ({ scholars }: ReportGeneratorProps) => {    const [stats, setStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const chartRef = useRef<HTMLDivElement>(null); // Ref to capture the chart element

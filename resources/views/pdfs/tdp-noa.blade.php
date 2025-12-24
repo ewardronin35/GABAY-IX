@@ -272,10 +272,23 @@
                     {{ $data['scholar']->middle_name ? substr($data['scholar']->middle_name, 0, 1) . '.' : '' }} 
                     {{ $data['scholar']->family_name }}
                 </div>
-                <div class="recipient-address">
-                    {{ $data['scholar']->address->specific_address ?? '' }} {{ $data['scholar']->address->barangay ?? '' }}
-                    {{ $data['scholar']->address->town_city ?? '' }}, {{ $data['scholar']->address->province ?? '' }} {{ $data['scholar']->address->zip_code ?? '' }}
-                </div>
+             <div class="recipient-address">
+        {{-- 1. specific_address --}}
+        {{ $data['scholar']->address?->specific_address }} 
+        
+        {{-- 2. FIX: Access the 'barangay' property INSIDE the relationship object --}}
+        {{-- Based on your error image, the column name inside the object is also "barangay" --}}
+        {{ $data['scholar']->address?->barangay->barangay ?? $data['scholar']->address?->barangay->name ?? '' }}
+        
+        {{-- 3. town_city (Only show comma if city exists) --}}
+        @if($data['scholar']->address?->town_city)
+            {{ $data['scholar']->address->town_city }},
+        @endif
+        
+        {{-- 4. province and zip --}}
+        {{ $data['scholar']->address?->province }} 
+        {{ $data['scholar']->address?->zip_code }}
+    </div>
             </div>
 
             <div class="body-paragraph">

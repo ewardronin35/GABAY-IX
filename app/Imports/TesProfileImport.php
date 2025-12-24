@@ -64,7 +64,7 @@ class TesProfileImport implements ToModel, WithHeadingRow, WithBatchInserts, Ski
    
     public function headingRow(): int
     {
-        return 1;
+        return 2;
     }
 
   public function model(array $row)
