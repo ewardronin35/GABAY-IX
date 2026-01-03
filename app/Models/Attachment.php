@@ -20,6 +20,8 @@ class Attachment extends Model
         'user_id', // ✨ ADD THIS
         'disk',    // ✨ ADD THIS
         'requirement_id', // ✨ ADD THIS
+        'reference_id',    // ✅ Added
+        'reference_table', // ✅ Added
     ];
 
   
@@ -32,5 +34,9 @@ class Attachment extends Model
     public function requirement()
     {
         return $this->belongsTo(Requirement::class);
+    }
+    public function reference()
+    {
+        return $this->morphTo(__FUNCTION__, 'reference_table', 'reference_id');
     }
 }

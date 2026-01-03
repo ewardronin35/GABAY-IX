@@ -16,9 +16,9 @@ use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\ItineraryController; // Make sure this is imported
 use App\Http\Controllers\TravelClaimController; // 👈 1. Import the controller
 use App\Http\Controllers\TesController; // <-- ADD THIS LINE
-use App\Http\Controllers\StufapController; // <-- ADD THIS LINE
+use App\Http\Controllers\StuFapsController; // <-- ADD THIS LINE
 use App\Http\Controllers\TdpController; // <-- ADD THIS LINE
-use App\Http\Controllers\EstatController; // <-- ADD THIS LINE
+use App\Http\Controllers\EstatistikolarController; // <-- ADD THIS LINE
 use App\Http\Controllers\Scholar\ScholarController as ScholarScholarController;
 use App\Http\Controllers\Admin\CsmpAdminController; // <-- Add this
 use App\Http\Controllers\CsmpScholarController; // <-- Add this
@@ -30,6 +30,12 @@ use App\Http\Controllers\FinancialRequestController;
 use App\Http\Controllers\UnifastRc\ValidationController;
 use App\Http\Controllers\BillingRecordController; // <-- Add this at the top
 use App\Http\Controllers\TravelOrderController; // <-- ADD THIS LINE
+use App\Http\Controllers\MsrsController; // <-- ADD THIS LINE
+use App\Http\Controllers\CmspController; // <-- ADD THIS LINE
+use App\Http\Controllers\PersonnelLocatorController; // <-- ADD THIS LINE
+use App\Http\Controllers\LeaveFormController; // <-- ADD THIS LINE
+use App\Http\Controllers\AdminApprovalController; // 👈 2. Import the controller
+
 
 Route::get('/auth/{provider}/redirect', [SocialiteController::class, 'redirect'])->name('socialite.redirect');
 Route::get('/auth/{provider}/callback', [SocialiteController::class, 'callback'])->name('socialite.callback');
@@ -57,6 +63,22 @@ Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard'
     // ==============================================================================
     //  TRAVEL MANAGEMENT ROUTES
     // ==============================================================================
+
+    // 2. Leave
+
+    Route::get('/personnel-locator', [PersonnelLocatorController::class, 'index'])->name('personnel-locator.index');
+    Route::post('/personnel-locator', [PersonnelLocatorController::class, 'store'])->name('locator.store');
+Route::put('/locator/{id}/arrived', [PersonnelLocatorController::class, 'markArrived'])->name('locator.arrived');
+    Route::post('/personnel-locator/print-ticket', [PersonnelLocatorController::class, 'printTripTicket'])->name('locator.print-ticket');
+
+
+Route::post('/trip-ticket', [PersonnelLocatorController::class, 'storeTripTicket'])->name('trip-ticket.store');
+Route::get('/trip-ticket/{id}/print', [PersonnelLocatorController::class, 'printTripTicket'])->name('trip-ticket.print');
+
+    Route::get('/leave-form', [LeaveFormController::class, 'index'])->name('leave-form.index');
+    Route::post('/leave-form', [LeaveFormController::class, 'store'])->name('leave-form.store');
+
+
 
     // 1. GENERAL ROUTES (Accessible by Staff, Chief, RD)
     // ------------------------------------------------------------------------------
@@ -147,11 +169,7 @@ Route::middleware(['auth', 'verified'])->prefix('superadmin')->name('superadmin.
     // --- STUFAPS DATABASE ---
     // Requires 'manage stufaps database' permission.
     Route::middleware('permission:manage stufaps database')->group(function () {
-        Route::get('/coscho-database', [CoschoController::class, 'index'])->name('coshco.index');
-Route::put('/coscho-database/bulk-update', [CoschoController::class, 'bulkUpdate'])->name('coscho.bulkUpdate');
-Route::delete('/coscho-database/{stufap}', [CoschoController::class, 'destroy'])->name('coscho.destroy');    
-// In routes/web.php
-Route::post('/coscho/import', [CoschoController::class, 'import'])->name('coscho.import');    
+
 
         // Reports
     Route::get('/reports/generate-masterlist', [ReportController::class, 'generateMasterlist'])
@@ -170,62 +188,9 @@ Route::post('/reports/generate-statistics-pdf', [ReportController::class, 'gener
 Route::get('/reports/generate-masterlist-pdf', [ReportController::class, 'generateMasterlistPdf'])
     ->name('reports.masterlist.pdf');
 // In routes/web.php
-Route::get('/reports/masterlist-data', [CoschoController::class, 'masterlistData'])->name('reports.masterlistData');
     // Master List
- Route::get('/', [TdpController::class, 'index'])->name('index');
 
-    // 2. Fetch Data for Grid (If using AJAX fetch)
-    Route::get('/data', [TdpController::class, 'getData'])->name('data'); 
 
-    // 3. Bulk Update (Saving Grid Changes)
-    Route::post('/bulk-update', [TdpController::class, 'bulkUpdate'])->name('bulk-update');
-
-    // 4. Bulk Destroy (Deleting Selected Rows)
-    Route::post('/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('bulk-destroy');
-Route::get('/tes', [TesController::class, 'index'])->name('tes.index');
-    Route::put('/tes/bulk-update', [TesController::class, 'bulkUpdate'])->name('tes.bulkUpdate');
-    Route::get('/tes/masterlist-data', [TesController::class, 'fetchMasterlistData'])->name('tes.masterlistData');
-    Route::get('/tes/statistics-data', [TesController::class, 'fetchStatisticsData'])->name('tes.statisticsData');
-    Route::post('/tes/statistics-pdf', [TesController::class, 'generateStatisticsPdf'])->name('tes.statisticsPdf');
-    Route::put('/tes/bulk-update', [TesController::class, 'bulkUpdate'])->name('tes.bulkUpdate');
-    Route::post('/tes/upload', [TesController::class, 'upload'])->name('tes.upload');
-    Route::post('/tes/import', [TesController::class, 'import'])->name('tes.import');
-    Route::get('/tes/masterlist/pdf', [TesController::class, 'generateMasterlistPdf'])->name('tes.masterlist.pdf');
-Route::get('/tes/masterlist/excel', [TesController::class, 'generateMasterlistExcel'])->name('tes.masterlist.excel');
-Route::get('/tes/statistics-excel', [TesController::class, 'generateStatisticsExcel'])->name('tes.statisticsExcel');
-
-Route::get('/stufaps', [StufapController::class, 'index'])->name('stufaps.index');
-    Route::post('/stufap/import', [StufapController::class, 'import'])->name('stufap.import');
-    Route::get('/stufap/masterlist-data', [StufapController::class, 'masterlistData'])->name('stufap.masterlistData');
-    Route::get('/stufap/statistics-data', [StufapController::class, 'StatisticsData'])->name('stufap.statisticsData');
-    Route::put('/stufap/bulkUpdate', [StufapController::class, 'bulkUpdate'])->name('stufap.bulkUpdate');
-    Route::post('/stufap/upload', [StufapController::class, 'upload'])->name('stufap.upload');
-Route::post('/stufap/statistics-pdf', [StufapController::class, 'generateStatisticsPdf'])->name('stufap.statisticsPdf');
-Route::get('/stufap/masterlist/pdf', [StufapController::class, 'generateMasterlistPdf'])->name('stufap.masterlist.pdf');
-Route::get('/stufap/masterlist/excel', [StufapController::class, 'generateMasterlistExcel'])->name('stufap.masterlist.excel');
-
-Route::get('/tdp', [TdpController::class, 'index'])->name('tdp.index');
-   Route::post('/tdp/bulk-update', [TdpController::class, 'bulkUpdate'])->name('tdp.bulk-update');
-    Route::post('/tdp/upload', [TdpController::class, 'upload'])->name('tdp.upload');
-    Route::post('/tdp/import', [TdpController::class, 'import'])->name('tdp.import');
-    Route::get('/tdp/statistics-data', [TdpController::class, 'fetchStatisticsData'])->name('tdp.statisticsData');
-   Route::post('/tdp/statistics-pdf', [TdpController::class, 'generateStatisticsPdf'])->name('tdp.statisticsPdf');
-    // ▼▼▼ JUST REMOVE THE DOTS IN THE NAME ▼▼▼
-    Route::get('/tdp/masterlist/excel', [TdpController::class, 'generateMasterlistExcel'])->name('tdp.masterlistExcel'); // ✅ Fixed
-    Route::get('/tdp/masterlist/pdf', [TdpController::class, 'generateMasterlistPdf'])->name('tdp.masterlistPdf'); // ✅ Fixed
-    Route::get('/tdp/hei/{hei}', [TdpController::class, 'showHei'])->name('tdp.hei.show'); // ✅ ADD THIS
-    Route::get('/tdp/scholar/{scholar}', [TdpController::class, 'showScholar'])->name('tdp.scholar.show');
-Route::post('tdp/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('tdp.bulk-destroy');
-Route::get('/estatskolar', [EstatController::class, 'index'])->name('estatskolar.index');
-Route::put('/estatskolar/bulk-update', [EstatController::class, 'bulkUpdate'])->name('estatskolar.bulkUpdate');
-Route::put('/estatskolar/monitoring-bulk-update', [EstatController::class, 'monitoringBulkUpdate'])->name('estatskolar.monitoringBulkUpdate');
-Route::post('/estatskolar/import', [EstatController::class, 'import'])->name('estatskolar.import');
-
-// Reports
-Route::get('/estatskolar/statistics-data', [EstatController::class, 'fetchStatisticsData'])->name('estatskolar.statisticsData');
-Route::post('/estatskolar/statistics-pdf', [EstatController::class, 'generateStatisticsPdf'])->name('estatskolar.statisticsPdf');
-Route::get('/estatskolar/masterlist/excel', [EstatController::class, 'generateMasterlistExcel'])->name('estatskolar.masterlist.excel');
-Route::get('/estat/masterlist/pdf', [EstatController::class, 'generateMasterlistPdf'])->name('estatskolar.masterlist.pdf');
 
 });
         Route::middleware('permission:view applications')->group(function () {
@@ -240,39 +205,14 @@ Route::get('/estat/masterlist/pdf', [EstatController::class, 'generateMasterlist
         Route::patch('/applications/{csmp_scholar}', [CsmpAdminController::class, 'update'])
              ->name('applications.update');
          });
-        Route::get('tdp/noa/{enrollment}', [ValidationController::class, 'generateNoa'])->name('tdp.generate-noa');
-Route::get('/tdp/batch-noa', [ValidationController::class, 'generateBatchNoa'])->name('tdp.generate-batch-noa');
-         Route::prefix('tdp')->name('tdp.')->group(function () {
-        
-      
-        
+   
        
         Route::get('/export/pdf', [TdpController::class, 'exportPdf'])->name('export-pdf');
         Route::get('/export/excel', [TdpController::class, 'exportExcel'])->name('export-excel');
 
        
     });
-    Route::prefix('tes/validation')->name('tes.validation.')->group(function () {
-        Route::get('/', [ValidationController::class, 'index'])
-            ->defaults('program', 'TES') // ✅ Force TES
-            ->name('index');
-
-        // Reuse API methods (Route names must be distinct for Ziggy)
-        Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
-        Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
-        Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
-    });
-Route::prefix('tdp/validation')->name('tdp.validation.')->group(function () {
-        Route::get('/', [ValidationController::class, 'index'])
-            ->defaults('program', 'TDP') // ✅ Force TDP
-            ->name('index');
-            
-        // Reuse API methods
-        Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
-        Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
-        Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
-    });
-
+   
     // The API for the modal (fetches TES vs TDP requirements)
     Route::get('/validation/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])
         ->name('validation.checklist');
@@ -285,7 +225,208 @@ Route::prefix('tdp/validation')->name('tdp.validation.')->group(function () {
 
 
     });
+// ==============================================================================
+// SHARED ADMIN PORTAL (TDP, TES, VALIDATION)
+// Accessible by: Superadmin, UnifastRC, RD, Scholarship Supervisor, Chief Admin
+// ==============================================================================
+Route::middleware([
+    'auth', 
+    'verified', 
+    // IMPORTANT: Ensure these role names match your database exactly (Case Sensitive)
+    'role:Super Admin|UnifastRC|RD|Scholarship Supervisor|Chief of Administrative Officer|Coscho Coordinator|Estatskolar Coordinator|CMSP Coordinator|MSRS Coordinator|StuFaps Coordinator'
+])
+->prefix('admin')        // URL: /admin/tdp
+->name('admin.')         // Route Name: admin.tdp.index
+->group(function () {
+
+    // --- TDP MODULE ---
+    Route::prefix('tdp')->name('tdp.')->group(function () {
+        Route::get('/', [TdpController::class, 'index'])->name('index');
+        Route::post('/bulk-update', [TdpController::class, 'bulkUpdate'])->name('bulk-update');
+        Route::post('/bulk-destroy', [TdpController::class, 'bulkDestroy'])->name('bulk-destroy');
+        Route::post('/upload', [TdpController::class, 'upload'])->name('upload');
+        Route::post('/import', [TdpController::class, 'import'])->name('import');
+        
+        // Exports
+        Route::get('/export/pdf', [TdpController::class, 'exportPdf'])->name('export-pdf');
+        Route::get('/export/excel', [TdpController::class, 'exportExcel'])->name('export-excel');
+        // Legacy export names (to prevent breaking changes if used elsewhere)
+        Route::get('/export/statistics-pdf', [TdpController::class, 'generateStatisticsPdf'])->name('export-statistics-pdf');
+        Route::get('/export/statistics-excel', [TdpController::class, 'generateStatisticsExcel'])->name('export-statistics-excel');
+        // Stats
+      
+
+        // Detailed Views
+        Route::get('/scholars/{scholar}', [TdpController::class, 'showScholar'])->name('scholar.show');
+        Route::get('/heis/{hei}', [TdpController::class, 'showHei'])->name('hei.show');
+
+        // NOA Generation
+        Route::get('/noa/{enrollment}', [ValidationController::class, 'generateNoa'])->name('generate-noa');
+        Route::get('/batch-noa', [ValidationController::class, 'generateBatchNoa'])->name('generate-batch-noa');
+        
+        // Validation Sub-Group (TDP Specific Defaults)
+        Route::prefix('validation')->name('validation.')->group(function () {
+            Route::get('/', [ValidationController::class, 'index'])->defaults('program', 'TDP')->name('index');
+            Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
+            Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
+            Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
+        });
+    });
+
+// --- StuFaps Module ---
+    Route::prefix('stufaps')->name('stufaps.')->group(function () {
+        Route::get('/', [StufapsController::class, 'index'])->name('index');
+        Route::post('/bulk-update', [StufapsController::class, 'bulkUpdate'])->name('bulk-update');
+        Route::post('/upload', [StufapsController::class, 'upload'])->name('upload');
+        Route::post('/import', [StufapsController::class, 'import'])->name('import');
+        Route::get('/export/excel', [StufapsController::class, 'exportExcel'])->name('export.excel');
+        Route::get('/export/pdf', [StufapsController::class, 'exportPdf'])->name('export.pdf');
+        Route::get('/scholars/{scholar}', [StufapsController::class, 'showScholar'])->name('scholar.show');
+        Route::get('/heis/{hei}', [StufapsController::class, 'showHei'])->name('show-hei'); 
+        Route::get('/scholar/{scholar}', [StuFapsController::class, 'showScholar'])
+    ->name('scholar.show');
+        Route::get('/statistics', [StuFapsController::class, 'exportStatisticsExcel'])->name('export.statistics.excel');
+        Route::get('/statistics/pdf', [StuFapsController::class, 'exportStatisticsPdf'])->name('export.statistics.pdf');
+
+    });                                     
+// --- MSRS MODULE ---
+    Route::prefix('msrs')->name('msrs.')->group(function () {
+        Route::get('/', [MsrsController::class, 'index'])->name('index');
+        Route::post('/import', [MsrsController::class, 'import'])->name('import');
+        Route::post('/upload', [MsrsController::class, 'upload'])->name('upload');
+       Route::get('/hei/{hei}', [MsrsController::class, 'showHei'])->name('hei.show');
+       Route::post('/bulk-update', [MsrsController::class, 'bulkUpdate'])->name('bulk-update'); // <--- ADD THIS
+        Route::post('/bulk-destroy', [MsrsController::class, 'bulkDestroy'])->name('bulk-destroy'); // <--- ADD THIS
+       Route::get('/export/excel', [MsrsController::class, 'exportExcel'])->name('export-excel');
+    Route::get('/export/pdf', [MsrsController::class, 'exportPdf'])->name('export-pdf');
+
+    // --- 📊 STATISTICS REPORT GENERATION ---
+    Route::get('/export/statistics-pdf', [MsrsController::class, 'generateStatisticsPdf'])
+        ->name('export-statistics-pdf');
+    
+    Route::get('/export/statistics-excel', [MsrsController::class, 'generateStatisticsExcel'])
+        ->name('export-statistics-excel');
+
+       
+       
+       Route::get('/scholars/{scholar}', [MsrsController::class, 'showScholar'])->name('scholars.show');
+    });
+
+
+    // --- CMSP MODULE ---
+    Route::prefix('cmsp')->name('cmsp.')->group(function () {
+        Route::get('/', [CmspController::class, 'index'])->name('index');
+        Route::post('/bulk-update', [CmspController::class, 'bulkUpdate'])->name('bulk-update');
+        Route::post('/upload', [CmspController::class, 'upload'])->name('upload');
+        Route::post('/import', [CmspController::class, 'import'])->name('import');
+        // Exports
+        Route::get('/export/pdf', [CmspController::class, 'exportPdf'])->name('export.pdf');
+        Route::get('/export/excel', [CmspController::class, 'exportExcel'])->name('export.excel');
+        Route::get('/export/statistics-pdf', [CmspController::class, 'exportStatisticsPdf'])->name('export-statistics-pdf');
+        Route::get('/export/statistics-excel', [CmspController::class, 'exportStatisticsExcel'])->name('export-statistics-excel');
+        
+        // Detailed Views
+        Route::get('/scholar/{id}', [CmspController::class, 'showScholar'])->name('scholar.show');
+        Route::get('/heis/{hei}', [CmspController::class, 'showHei'])->name('show-hei');
+    
+    });
+
+    // --- TES MODULE ---
+    Route::prefix('tes')->name('tes.')->group(function () {
+        Route::get('/', [TesController::class, 'index'])->name('index');
+        Route::post('/bulk-update', [TesController::class, 'bulkUpdate'])->name('bulkUpdate');
+        Route::post('/upload', [TesController::class, 'upload'])->name('upload');
+        Route::post('/import', [TesController::class, 'import'])->name('import');
+
+        // Exports
+        Route::get('/export/pdf', [TesController::class, 'exportPdf'])->name('export-pdf');
+        Route::get('/export/excel', [TesController::class, 'exportExcel'])->name('export-excel');
+        Route::get('/export/statistics-pdf', [TesController::class, 'exportStatisticsPdf'])->name('export-statistics-pdf');
+        Route::get('/export/statistics-excel', [TesController::class, 'exportStatisticsExcel'])->name('export-statistics-excel');
+        
+        // Detailed Views
+        Route::get('/scholars/{scholar}', [TesController::class, 'showScholar'])->name('scholar.show');
+        Route::get('/heis/{hei}', [TesController::class, 'showHei'])->name('hei.show');
+        Route::post('/heis/{hei}/upload', [TesController::class, 'uploadHeiFile'])->name('hei.upload');
+
+        // Validation Sub-Group (TES Specific Defaults)
+        Route::prefix('validation')->name('validation.')->group(function () {
+            Route::get('/', [ValidationController::class, 'index'])->defaults('program', 'TES')->name('index');
+            Route::get('/{enrollment}/checklist', [ValidationController::class, 'getChecklist'])->name('checklist');
+            Route::post('/{enrollment}/upload', [ValidationController::class, 'uploadRequirement'])->name('upload');
+            Route::post('/{enrollment}/approve', [ValidationController::class, 'validateScholar'])->name('approve');
+        });
+    });
+
+
+    // --- ESTATISTIKOLAR ---
+   Route::prefix('estatskolar')->name('estatskolar.')->group(function () {
+    // 1. Dashboard & Actions
+    Route::get('/', [EstatistikolarController::class, 'index'])->name('index');
+    Route::put('/bulk-update', [EstatistikolarController::class, 'bulkUpdate'])->name('bulkUpdate');
+    Route::post('/import', [EstatistikolarController::class, 'import'])->name('import');
+
+    // 2. Reports (JSON Data for Charts)
+    Route::get('/statistics-data', [EstatistikolarController::class, 'fetchStatisticsData'])->name('statistics.data');
+
+    // 3. EXPORTS (Downloads must be GET)
+    Route::get('/statistics/excel', [EstatistikolarController::class, 'exportStatisticsExcel'])->name('statistics.excel');
+    Route::get('/statistics/pdf', [EstatistikolarController::class, 'exportStatisticsPdf'])->name('statistics.pdf');
+
+    Route::get('/masterlist/excel', [EstatistikolarController::class, 'generateMasterlistExcel'])->name('masterlist.excel');
+    Route::get('/masterlist/pdf', [EstatistikolarController::class, 'generateMasterlistPdf'])->name('masterlist.pdf');
+
+    // 4. Details
+    Route::get('/scholars/{id}', [EstatistikolarController::class, 'showScholar'])->name('show-scholar');
+    Route::get('/heis/{hei}', [EstatistikolarController::class, 'showHei'])->name('show-hei');
 });
+
+
+// --- COSCHO PROGRAM ROUTES ---
+Route::prefix('coscho')->name('coscho.')->middleware(['auth', 'verified'])->group(function () {
+    
+    // 1. Main Dashboard & Grid
+    Route::get('/', [CoschoController::class, 'index'])->name('index');
+    
+    // 2. Data Actions (Import & Update)
+    Route::put('/bulk-update', [CoschoController::class, 'bulkUpdate'])->name('bulkUpdate');
+    Route::post('/import', [CoschoController::class, 'import'])->name('import');
+
+    // 3. Reports: Statistics (Downloadable)
+    Route::get('/statistics/excel', [CoschoController::class, 'exportStatisticsExcel'])->name('statistics.excel');
+    Route::get('/statistics/pdf', [CoschoController::class, 'exportStatisticsPdf'])->name('statistics.pdf');
+    Route::get('/noa/{id}', [CoschoController::class, 'generateNoa'])->name('generate-noa');
+    // 4. Reports: Masterlist (Downloadable)
+    Route::get('/masterlist/excel', [CoschoController::class, 'generateMasterlistExcel'])->name('masterlist.excel');
+    Route::get('/masterlist/pdf', [CoschoController::class, 'generateMasterlistPdf'])->name('masterlist.pdf');
+
+    // 5. Detailed Views (Drill-down)
+    Route::get('/scholars/{id}', [CoschoController::class, 'showScholar'])->name('show-scholar');
+    Route::get('/heis/{hei}', [CoschoController::class, 'showHei'])->name('show-hei');
+});
+
+
+    // --- GENERAL VALIDATION (Fallback/Shared) ---
+    Route::get('/validation', [ValidationController::class, 'index'])->name('validation.index');
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Route::middleware(['auth', 'verified', 'permission:validate submissions'])
     ->prefix('unifastrc')
@@ -317,6 +458,24 @@ Route::middleware(['auth', 'role:RD'])->group(function () {
     Route::post('/rd/batches/{batch}/approve', [BatchController::class, 'approve'])->name('rd.batches.approve');
     Route::post('/rd/batches/{batch}/return', [BatchController::class, 'returnBatch'])->name('rd.batches.return');
 });
+
+
+
+
+
+
+Route::middleware([
+    'auth', 
+    // FIXED: Use '|' instead of ',' to allow EITHER role
+    'role:Chief of Administrative Officer|Assistant Administrative Officer' 
+])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('/approvals', [AdminApprovalController::class, 'index'])->name('approvals.index');
+        Route::put('/approvals/{type}/{id}', [AdminApprovalController::class, 'updateStatus'])->name('approvals.update');
+    });
+
 
 // Cashier
 Route::middleware(['auth', 'role:Cashier'])->prefix('cashier')->name('cashier.')->group(function () {

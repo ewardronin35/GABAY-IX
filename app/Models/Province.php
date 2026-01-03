@@ -16,6 +16,10 @@ class Province extends Model
     {
         return $this->hasMany(City::class);
     }
+    public function region()
+    {
+        return $this->belongsTo(Region::class);
+    }
 
     public function districts(): HasMany
     {
@@ -26,4 +30,9 @@ class Province extends Model
     {
         return $this->hasMany(HEI::class);
     }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class);
+    }   
 }

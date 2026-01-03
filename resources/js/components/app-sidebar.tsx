@@ -42,19 +42,90 @@ import {
     ServerCog,
     Database,
     HandCoins,
-    ClipboardList,
+    FileCheck,    ClipboardList,
     ListChecks, 
     Eye,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const footerNavItems: NavItem[] = [
-    // ...
+    
 ];
 
+const coschoCoordinatorNavItems: NavItem[] = [
+    {
+        title: 'Scholarship Database',
+        icon: Database,
+        href: '#',
+        children: [
+            {
+                title: 'COSCHO',
+                href: route('admin.coscho.index'),
+                isActive: route().current('admin.coscho.index'),
+            },
+        ],
+    },
+];
+const estatskolarCoordinatorNavItems: NavItem[] = [
+    {
+        title: 'Scholarship Database',
+        icon: Database,
+        href: '#',
+        children: [
+            {
+                title: 'Estatskolar',
+                href: route('admin.estatskolar.index'),
+                isActive: route().current('admin.estatskolar.index'),
+            },
+        ],
+    },
+];
 
+const cmspCoordinatorNavItems: NavItem[] = [
+    {
+        title: 'Scholarship Database',
+        icon: Database,
+        href: '#',
+        children: [
+            {
+                title: 'CMSP',
+                href: route('admin.cmsp.index'),
+                isActive: route().current('admin.cmsp.index'),
+            },
+        ],
+    },
+];
+const msrsCoordinatorNavItems: NavItem[] = [
+    {
+        title: 'Scholarship Database',
+        icon: Database,
+        href: '#',
+        isActive: route().current('admin.msrs.*'),
+        children: [
+            {
+                title: 'MSRS',
+                href: route('admin.msrs.index'),
+                isActive: route().current('admin.msrs.*'),
+            },
+        ],
+    },
+];
 
-// ✨ --- 2. ROLE-SPECIFIC NAVIGATION ---
+const stuFapsCoordinatorNavItems: NavItem[] = [
+    {
+        title: 'Scholarship Database',
+        icon: Database,
+        href: '#',
+        isActive: route().current('admin.stufaps.*'),
+        children: [
+            {
+                title: 'STUFAP',
+                href: route('admin.stufaps.index'),
+                isActive: route().current('admin.stufaps.index'),
+            },
+        ],
+    },
+];
 const unifastRcNavItems: NavItem[] = [
   
     {
@@ -64,27 +135,36 @@ const unifastRcNavItems: NavItem[] = [
         children: [
             {
                 title: 'TES',
-                href: route('superadmin.tes.index'),
-                isActive: route().current('superadmin.tes.index'),
+                href: route('admin.tes.index'),
+                isActive: route().current('admin.tes.index'),
             },
             {
                 title: 'TDP',
-                href: route('superadmin.tdp.index'),
-                isActive: route().current('superadmin.tdp.index'),
+                href: route('admin.tdp.index'),
+                isActive: route().current('admin.tdp.index'),
             },
         ],
     },
 ];
-// Items for 'Super Admin' (routes often prefixed with 'superadmin.')
-const superAdminNavItems: NavItem[] = [
-  
-    {           
-                                        title: 'Validation',
-                                        href: route('unifastrc.validation.index'),
-                                        icon: ClipboardList,
-                                                                                isActive: route().current('unifastrc.validation.index'),
-
-                                    },
+const adminPortalNavItems: NavItem[] = [
+    {
+        title: 'UniFast Database',
+        icon: Database,
+        href: '#',
+        isActive: route().current('admin.tes.*') || route().current('admin.tdp.*'),
+        children: [
+            {
+                title: 'TES',
+                href: route('admin.tes.index'),
+                isActive: route().current('admin.tes.*'),
+            },
+            {
+                title: 'TDP',
+                href: route('admin.tdp.index'),
+                isActive: route().current('admin.tdp.*'),
+            },
+        ],
+    },
     {
         title: 'Scholarship Database',
         icon: Database,
@@ -92,40 +172,39 @@ const superAdminNavItems: NavItem[] = [
         children: [
             {
                 title: 'COSCHO',
-                href: route('superadmin.coshco.index'),
-                isActive: route().current('superadmin.coshco.index'),
+                href: route('admin.coscho.index'),
+                isActive: route().current('admin.coscho.index'),
             },
             {
                 title: 'STUFAP',
-                href: route('superadmin.stufaps.index'),
-                isActive: route().current('superadmin.stufaps.index'),
+                href: route('admin.stufaps.index'),
+                isActive: route().current('admin.stufaps.index'),
             },
-           
+             {
+                title: 'MSRS',
+                href: route('admin.msrs.index'), // New Route
+                isActive: route().current('admin.msrs.*'),
+            },
+            
+            {
+                title: 'CSMP',
+                href: route('admin.cmsp.index'),
+                isActive: route().current('admin.cmsp.index'),
+            },
             {
                 title: 'Estatskolar',
-                href: route('superadmin.estatskolar.index'),
-                isActive: route().current('superadmin.estatskolar.index'),
+                href: route('admin.estatskolar.index'),
+                isActive: route().current('admin.estatskolar.index'),
             },
         ],
     },
-    {
-        title: 'UniFast Database',
-        icon: Database,
-        href: '#',
-        children: [
-           {
-                title: 'TES',
-                href: route('superadmin.tes.index'),
-                isActive: route().current('superadmin.tes.index'),
-            },
-            {
-                title: 'TDP',
-                href: route('superadmin.tdp.index'),
-                isActive: route().current('superadmin.tdp.index'),
-            },
-        ],
-
-    },
+  
+  
+];
+// Items for 'Super Admin' (routes often prefixed with 'superadmin.')
+const superAdminNavItems: NavItem[] = [
+  
+    
     
     {
         title: 'Scholarship',
@@ -233,7 +312,16 @@ const chiefNavItems: NavItem[] = [
         icon: Eye,
         isActive: route().current('management.financial.*'),
     },
+  {
+        title: 'Travel Approvals',
+        // ✨ POINTS TO NEW APPROVALS ROUTE
+        href: route('travel-orders.approvals'), 
+        icon: FileCheck,
+        isActive: route().current('travel-orders.approvals'),
+    },
 ];
+
+
 
 const rdNavItems: NavItem[] = [
     {
@@ -241,6 +329,13 @@ const rdNavItems: NavItem[] = [
         href: route('management.financial.all-requests'),
         icon: Eye,
         isActive: route().current('management.financial.*'),
+    },
+   {
+        title: 'Travel Approvals',
+        // ✨ POINTS TO NEW APPROVALS ROUTE
+        href: route('travel-orders.approvals'), 
+        icon: FileCheck,
+        isActive: route().current('travel-orders.approvals'),
     },
 ];
 const budgetNavItems: NavItem[] = [
@@ -251,13 +346,36 @@ const budgetNavItems: NavItem[] = [
         isActive: route().current('budget.dashboard'),
     },
   
-    // ✨ ADD THIS NEW LINK
+    
     {
-        title: 'All Requests',
-        href: route('budget.all-requests'),
-        icon: Files,
-        isActive: route().current('budget.all-requests'),
+        title: 'Travel Approvals',
+        // ✨ POINTS TO NEW APPROVALS ROUTE
+        href: route('travel-orders.approvals'), 
+        icon: FileCheck,
+        isActive: route().current('travel-orders.approvals'),
     },
+];
+const ChiefAdminOfficerNavItems: NavItem[] = [
+    {
+        title: 'Financial Tracker',
+        href: route('management.financial.all-requests'),
+        icon: Eye,
+        isActive: route().current('management.financial.*'),
+    },
+  {
+        title: 'Travel Approvals',
+        // ✨ POINTS TO NEW APPROVALS ROUTE
+        href: route('travel-orders.approvals'), 
+        icon: FileCheck,
+        isActive: route().current('travel-orders.approvals'),
+    },
+    {
+        title: 'Personnel Locator Approvals',
+        href: route('admin.approvals.index'),
+        icon: FileCheck,
+        isActive: route().current('admin.approvals.index'),   
+    }
+
 ];
 
 const cashierNavItems: NavItem[] = [
@@ -274,12 +392,11 @@ const cashierNavItems: NavItem[] = [
     // The "Reports" link is removed because it is now a tab
     // inside the "Requests & Reports" page.
 ];
-// --- APP SIDEBAR COMPONENT ---
-export default function AppSidebar() { // Changed from export function AppSidebar()
-    // const user = auth.user; // We can use auth.user directly
-const { auth, ziggy } = usePage<PageProps>().props;
 
-    // ✨ 2. FIX: Move commonNavItems INSIDE the component, after usePage().
+    export default function AppSidebar() { // Changed from export function AppSidebar()
+    // const user = auth.user; // We can use auth.user directly
+    const { auth, ziggy } = usePage<PageProps>().props;
+    
     const commonNavItems: NavItem[] = [
         {
             title: 'Dashboard',
@@ -287,66 +404,45 @@ const { auth, ziggy } = usePage<PageProps>().props;
             icon: LayoutGrid,
             isActive: route().current('dashboard'),
         },
+        
         {
-            title: 'Financial Tracking',
-            icon: HandCoins,
-            href: '#', 
-            isActive: route().current('financial.index'), 
-            children: [
-                {
-                    title: 'All Requests',
-                    href: route('financial.index'), 
-                    // 'ziggy' is now correctly defined from the hook above
-                    isActive: route().current('financial.index') && !ziggy.query.tab,
-                },
-                {
-                    title: 'Submit Request',
-                    href: route('financial.index', { tab: 'create_new' }), 
-                    isActive: route().current('financial.index', { tab: 'create_new' }),
-                },
-            ],
-        },
-            {
+    title: 'Financial Track',
+    icon: HandCoins,
+    href: route('financial.index'), // Points directly to the page now
+    isActive: route().current('financial.index'), // Highlights when on this page
+    },
+        {
         title: 'Travel Management',
         icon: Plane,
-        href: '#',
+        href: '#', 
+        // Keep the parent menu open if any of the child routes are active
+        isActive: route().current('travel-orders.*') || route().current('travel-claims.*'),
         children: [
             {
-                title: 'Request Authority',
+                title: 'My Requests', // The Dashboard/List View
+                href: route('travel-orders.index'),
+                isActive: route().current('travel-orders.index'),
+            },
+            {
+                title: 'Create Travel Order', // The 3-Step Wizard
                 href: route('travel-orders.create'),
                 isActive: route().current('travel-orders.create'),
             },
             {
-                title: 'My Travel Claims',
-                href: route('travel-claims.create'), // Your existing claims page
+                title: 'Create Travel Reimbursements', // Reimbursements
+                href: route('travel-claims.create'), 
                 isActive: route().current('travel-claims.*'),
             },
-            {
-    title: 'New Travel Request',
-    isActive: route().current('travel.create'),
-    icon: Plane,
-}
-        ],
+                ],
+        },
+      
+{
+        title: 'Personnel Dashboard', // Renamed to reflect the unified view
+        icon: FileText, // You might want to import MapPin or LayoutDashboard instead
+        href: route('personnel-locator.index'), // Direct link to the dashboard
+        isActive: route().current('personnel-locator.*') || route().current('leave.*'), // Keeps it active for both underlying routes
     },
-    {
-        title: 'Personnel Locator',
-        icon: FileText,
-        isActive: route().current('personnel-locator.*') || route().current('leave-form.*'),
-        children: [
-            {
-                title: 'Personnel Locator Form',
-                href: route('personnel-locator.index'),
-                isActive: route().current('personnel-locator.index'),
-            },
-            {
-                title: 'Leave Form',
-                href: route('leave-form.index'),
-                isActive: route().current('leave-form.*'),
-            },
-        ],
-    },
-
-
+    
     ];
     // --- FIX: Correctly get roles and determine primary role ---
     // Ensure roles is treated as an array, even if undefined/null initially
@@ -354,6 +450,7 @@ const { auth, ziggy } = usePage<PageProps>().props;
     const userRoles: string[] = Array.isArray(rawRoles)
         ? (rawRoles as any[]).map((r) => (typeof r === 'string' ? r : r?.name ?? ''))
         : [];
+
     // Use the first role for the switch logic, handle cases where roles might be empty
     const primaryRole = userRoles.length > 0 ? userRoles[0] : null; 
 
@@ -368,34 +465,61 @@ const { auth, ziggy } = usePage<PageProps>().props;
             finalNavItems = [
                 ...finalNavItems,
                 ...superAdminNavItems,
-                ...accountantNavItems,
-                 ...scholarNavItems,
-                 ...budgetNavItems,
+                ...adminPortalNavItems,
+             
                 
-                // ... potentially add others like accountantNavItems if needed
+                
             ];
+
+
             break;
-        case 'Chief':
+        case 'Chief Education Program Specialist':
             // Chief sees common items + their own
             finalNavItems = [...finalNavItems, ...chiefNavItems];
             break;
         case 'RD':
             // RD sees common items + their own
-            finalNavItems = [...finalNavItems, ...rdNavItems];
+            finalNavItems = [...finalNavItems, ...rdNavItems, ...adminPortalNavItems];
             break;
 
+        case 'Scholarship Supervisor':
+            // SS sees common items + their own
+            finalNavItems = [...finalNavItems, ...adminPortalNavItems];
         case 'UniFast RC':
-            console.log("Matched Role: UniFast RC"); // Debug
-            // finalNavItems = [...finalNavItems, ...unifastRcNavItems];
+            finalNavItems = [...finalNavItems, ...unifastRcNavItems];
             break;
 
         case 'Scholar':
             // Scholar sees common items + their own
             finalNavItems = [...finalNavItems, ...scholarNavItems];
             break;
+        
+        case 'Chief of Administrative Officer': 
+            finalNavItems = [...finalNavItems, ...ChiefAdminOfficerNavItems]; 
+            break;
+        
+        case 'Assistant Administrative Officer': 
+            finalNavItems = [...finalNavItems, ...ChiefAdminOfficerNavItems];
+            break;
 
-        case 'Accounting': // Example of another role
-            // Accountant sees common items + their own
+        case 'Coscho Coordinator':
+            finalNavItems = [...finalNavItems, ...coschoCoordinatorNavItems];
+            break;
+            
+        case 'Estatskolar Coordinator':
+            finalNavItems = [...finalNavItems, ...estatskolarCoordinatorNavItems];
+            break;
+        case 'CMSP Coordinator':
+            finalNavItems = [...finalNavItems, ...cmspCoordinatorNavItems];
+            break;
+        case 'MSRS Coordinator':
+            finalNavItems = [...finalNavItems, ...msrsCoordinatorNavItems];
+            break;
+        case 'StuFaps Coordinator':
+            finalNavItems = [...finalNavItems, ...stuFapsCoordinatorNavItems];
+            break;
+        case 'Accounting': 
+
             finalNavItems = [...finalNavItems, ...accountantNavItems];
             break;
 
@@ -408,9 +532,7 @@ const { auth, ziggy } = usePage<PageProps>().props;
             
         
         
-        // Add more roles as needed
-        // default:
-        // User has no special role, they just see common items
+        
     }
 
     return (

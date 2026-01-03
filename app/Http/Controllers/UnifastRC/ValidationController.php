@@ -88,8 +88,8 @@ class ValidationController extends Controller
             ->pluck('batch_no')->toArray();
 
         // ✅ DYNAMIC VIEW RENDER
-        // Renders 'Admin/Tes/Partials/Validation' OR 'Admin/Tdp/Partials/Validation'
-        $view = ($program === 'TES') ? 'Admin/Tes/Partials/Validation' : 'Admin/Tdp/Partials/Validation';
+        // Renders 'Tes/Partials/Validation' OR 'Tdp/Partials/Validation'
+        $view = ($program === 'TES') ? 'Tes/Partials/Validation' : 'Tdp/Partials/Validation';
 
         return Inertia::render($view, [
             'scholars' => $scholars,

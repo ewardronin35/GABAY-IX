@@ -1,144 +1,139 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <title>TDP Masterlist Report</title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>TDP Masterlist</title>
     <style>
-        /* This CSS is critical for styling the PDF */
-        @page {
-            margin: 20px; /* Reduced margin */
+        @page { 
+            /* Reduced margins to maximize space for larger text */
+            margin: 10px 10px; 
+            size: legal landscape; 
         }
-        body {
-            font-family: 'Helvetica', 'Arial', sans-serif;
-            font-size: 8px; /* Legal-landscape paper is wide, so we use small text */
+        body { 
+            font-family: 'Helvetica', sans-serif; 
+            font-size: 10px; /* ✅ Increased from 8px */
+            color: #000; 
         }
         
-        /* --- HEADER STYLES --- */
-        .header-table {
-            width: 100%;
-            border: 0;
-            border-bottom: 1px solid #333;
-            margin-bottom: 15px;
+        /* HEADER */
+        .header-table { 
+            width: 100%; 
+            margin-bottom: 15px; 
+            border-bottom: 2px solid #0056b3; 
+            padding-bottom: 5px; 
         }
-        .header-table td {
-            border: 0;
-            padding: 0 5px;
-            text-align: center;
-            vertical-align: middle;
-        }
-        .header-logo {
-            width: 80px; /* Fixed width for logos */
-        }
-        .header-logo img {
-            max-width: 100%;
-            height: auto;
-        }
-        .header-text {
-            line-height: 1.2;
-        }
-        .header-text .line-1 {
-            font-size: 10px;
-        }
-        .header-text .line-2 {
-            font-size: 10px;
-        }
-        .header-text .line-3 {
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .header-text .line-4 {
-            font-size: 12px;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        /* --- END HEADER STYLES --- */
+        .header-table td { text-align: center; vertical-align: middle; }
+        .header-logo { height: 55px; width: auto; } /* Slightly larger logo */
+        
+        .republic { font-size: 10px; }
+        .commission { font-family: 'Times New Roman', serif; font-size: 12px; font-weight: bold; }
+        .title { font-size: 16px; font-weight: bold; color: #0056b3; margin-top: 2px; }
+        .subtitle { font-size: 10px; font-style: italic; }
 
-        .date {
-            text-align: right;
-            font-size: 9px;
-            font-style: italic;
-            margin-bottom: 10px;
+        /* DATA TABLE */
+        table.data { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+            table-layout: fixed; 
         }
-
-        .main-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .main-table th, .main-table td {
-            border: 1px solid #777;
-            padding: 4px;
-            text-align: left;
+        table.data th, table.data td { 
+            border: 1px solid #444; 
+            padding: 4px; /* More padding for readability */
+            text-align: left; 
+            vertical-align: top;
             word-wrap: break-word; 
+            overflow-wrap: break-word;
         }
-        .main-table th {
-            background-color: #f0f0f0;
-            font-weight: bold;
+        table.data th { 
+            background-color: #0056b3; 
+            color: #fff; 
+            text-align: center; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            font-size: 9px; /* ✅ Increased from 7px */
         }
-        .no-records {
-            text-align: center;
-            padding: 20px;
-            font-style: italic;
+        table.data td { 
+            font-size: 9px; /* ✅ Increased from 7px */
         }
+        
+        .center { text-align: center !important; }
+        .right { text-align: right !important; }
     </style>
 </head>
 <body>
 
     <table class="header-table">
         <tr>
-            <td class="header-logo">
-                <img src="{{ public_path('images/ched-logo.png') }}" alt="CHED Logo">
+            <td width="15%"><img src="{{ public_path('images/ched-logo.png') }}" class="header-logo"></td>
+            <td width="70%">
+                <div class="republic">Republic of the Philippines</div>
+                <div class="commission">COMMISSION ON HIGHER EDUCATION</div>
+                <div class="republic" style="font-weight:bold;">REGIONAL OFFICE IX</div>
+                <div class="title">TULONG DUNONG PROGRAM (TDP) MASTERLIST</div>
+                <div class="subtitle">Generated on: {{ date('F d, Y h:i A') }}</div>
+                @if(isset($filters['academic_year']) && $filters['academic_year'] !== 'all')
+                    <div class="subtitle">Academic Year: {{ $filters['academic_year'] }}</div>
+                @endif
             </td>
-            <td class="header-text">
-                <div class="line-1">Republic of the Philippines</div>
-                <div class="line-2">OFFICE OF THE PRESIDENT</div>
-                <div class="line-3">COMMISSION ON HIGHER EDUCATION</div>
-                <div class="line-4">Tulong Dunong Program (TDP) Masterlist</div>
-            </td>
-            <td class="header-logo">
-                <img src="{{ public_path('images/bagong-pilipinas-logo.png') }}" alt="Bagong Pilipinas Logo">
-            </td>
+            <td width="15%"><img src="{{ public_path('images/bagong-pilipinas-logo.png') }}" class="header-logo"></td>
         </tr>
     </table>
-    <div class="date">
-        Date Generated: {{ date('F j, Y') }}
-    </div>
 
-    <table class="main-table">
+    @if(count($records) > 0)
+    <table class="data">
         <thead>
             <tr>
-                <th>Award No.</th>
-                <th>Last Name</th>
-                <th>First Name</th>
-                <th>Middle Name</th>
-                <th>HEI</th>
-                <th>Course</th>
-                <th>Status</th>
-            </tr>
+                <th width="3%">Seq</th>
+                <th width="7%">Region</th>
+                <th width="8%">Province</th>
+                <th width="8%">City</th>
+                <th width="16%">HEI Name</th>
+                <th width="9%">Award No</th>
+                <th width="9%">Last Name</th>
+                <th width="9%">First Name</th>
+                <th width="6%">Mid</th> <th width="12%">Course</th>
+                <th width="3%">Yr</th>
+                <th width="5%">Stat</th> <th width="5%">Amt</th> </tr>
         </thead>
         <tbody>
-            @forelse ($records as $record)
+            @foreach($records as $record)
+                @php 
+                    $scholar = $record->enrollment?->scholar; 
+                    $address = $scholar?->address;
+                    
+                    // Fallback to text column if ID relationship is null
+                    $regionName = $address?->region?->name ?? $address?->getAttribute('region') ?? '-';
+                    $provinceName = $address?->province?->name ?? $address?->getAttribute('province') ?? '-';
+                    $cityName = $address?->city?->name ?? $address?->getAttribute('town_city') ?? '-';
+                @endphp
                 <tr>
-                    <td>{{ $record->award_no ?? 'N/A' }}</td>
+                    <td class="center">{{ $record->seq }}</td>
+                    <td>{{ $regionName }}</td>
+                    <td>{{ $provinceName }}</td>
+                    <td>{{ $cityName }}</td>
                     
-                    <td>{{ $record->scholar->family_name ?? '' }}</td>
-                    <td>{{ $record->scholar->given_name ?? '' }}</td>
-                    <td>{{ $record->scholar->middle_name ?? '' }}</td>
+                    <td>{{ $record->hei?->hei_name }}</td>
+                    <td class="center">{{ $record->enrollment?->award_number }}</td>
                     
-                    <td>{{ $record->hei->hei_name ?? 'N/A' }}</td>
-                    <td>{{ $record->course->course_name ?? 'N/A' }}</td>
+                    <td>{{ $scholar?->family_name }}</td>
+                    <td>{{ $scholar?->given_name }}</td>
+                    <td>{{ $scholar?->middle_name }}</td>
                     
-                    <td>{{ $record->validation_status ?? 'N/A' }}</td>
+                    <td>{{ $record->course?->course_name }}</td>
+                    <td class="center">{{ $record->year_level }}</td>
+                    
+                    <td class="center">{{ $record->payment_status }}</td>
+                    <td class="right">{{ number_format($record->grant_amount, 2) }}</td>
                 </tr>
-            @empty
-                <tr>
-                    <td colspan="7" class="no-records">
-                        No records found for the selected filters.
-                    </td>
-                </tr>
-            @endforelse
+            @endforeach
         </tbody>
     </table>
+    @else
+        <div style="text-align: center; margin-top: 50px; font-style: italic; font-size: 12px;">
+            No records found for the selected filters.
+        </div>
+    @endif
 
 </body>
 </html>

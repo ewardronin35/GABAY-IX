@@ -3,120 +3,187 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use App\Models\UserPersonalLocatorTime;
-use App\Mail\PersonalTravelOvertimeWarning;
+use App\Models\LocatorSlip; 
+use App\Models\LeaveApplication;
+use App\Models\VehicleTripTicket;
 use Carbon\Carbon;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class PersonnelLocatorController extends Controller
 {
-    public function index(Request $request): Response
+   public function index(Request $request)
     {
         $user = Auth::user();
         $currentMonth = now()->format('Y-m');
 
-        // Get current month's consumed time for this user
-        $timeRecord = UserPersonalLocatorTime::where('user_id', $user->id)
-            ->where('month', $currentMonth)
+        // 1. Time Calculations
+        $timeRecord = UserPersonalLocatorTime::getOrCreateForMonth($user->id, $currentMonth);
+        $consumedSeconds = $timeRecord->time_consumed_seconds;
+        $remainingSeconds = $timeRecord->getRemainingSeconds();
+
+        // 2. Active Trip Check
+        $activeTrip = LocatorSlip::where('user_id', $user->id)
+            ->whereNull('time_arrival')
+            ->where('status', '!=', 'rejected')
             ->first();
 
-        $consumedSeconds = $timeRecord ? $timeRecord->time_consumed_seconds : 0;
-        $remainingSeconds = 14400 - $consumedSeconds; // 4 hours = 14400 seconds
+        if ($activeTrip && $activeTrip->status === 'approved') {
+            $hoursRunning = Carbon::parse($activeTrip->time_departure)->diffInHours(now());
 
-        return Inertia::render('PersonnelLocator/Form', [
-            'consumedSeconds' => $consumedSeconds,
-            'remainingSeconds' => $remainingSeconds,
-        ]);
-    }
-
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'date' => 'required|date',
-            'name_of_personnel' => 'required|string|max:255',
-            'designation' => 'required|string|max:255',
-            'purpose' => 'required|string',
-            'destination' => 'required|string|max:255',
-            'nature_of_travel' => 'required|in:Official,Personal',
-            'time_departure' => 'required',
-            'time_arrival' => 'required',
-            'representative_signature' => 'nullable|string|max:255',
-        ]);
-
-        $user = Auth::user();
-
-        // Save the locator slip
-        DB::table('personnel_locator_slips')->insert([
-            'date' => $validated['date'],
-            'name_of_personnel' => $validated['name_of_personnel'],
-            'designation' => $validated['designation'],
-            'purpose' => $validated['purpose'],
-            'destination' => $validated['destination'],
-            'nature_of_travel' => $validated['nature_of_travel'],
-            'time_departure' => $validated['time_departure'],
-            'time_arrival' => $validated['time_arrival'],
-            'representative_signature' => $validated['representative_signature'],
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Only track time if this is a Personal trip
-        if ($validated['nature_of_travel'] === 'Personal') {
-            $timeRecord = $this->trackPersonalTime($validated['time_departure'], $validated['time_arrival']);
-
-            // Check if user is now in overtime and send email
-            if ($timeRecord->isOvertime()) {
-                Mail::to($user->email)->queue(new PersonalTravelOvertimeWarning($timeRecord, $user));
-
-                // Format overtime message
-                $overtimeSeconds = $timeRecord->getOvertimeSeconds();
-                $hours = floor($overtimeSeconds / 3600);
-                $minutes = floor(($overtimeSeconds % 3600) / 60);
-                $overtimeMessage = "You are now {$hours}h {$minutes}m over your monthly personal travel limit.";
-
-                return redirect()->route('personnel-locator.index')
-                    ->with('success', 'Personnel Locator Slip submitted successfully!')
-                    ->with('warning', $overtimeMessage);
+        if ($hoursRunning > 8) {
+                // FIXED: Use Mail::raw instead of missing ReminderEmail class
+                $message = "REMINDER: You have an active trip to {$activeTrip->destination} running for {$hoursRunning} hours. Please mark it as arrived.";
+                Mail::raw($message, function($msg) use ($user) {
+                    $msg->to($user->email)->subject('Action Required: Ongoing Trip');
+                });
             }
         }
 
-        return redirect()->route('personnel-locator.index')
-            ->with('success', 'Personnel Locator Slip submitted successfully!');
+        // 4. Fetch Histories
+        $locatorHistory = LocatorSlip::where('user_id', $user->id)->orderBy('created_at', 'desc')->get();
+        $ticketHistory = VehicleTripTicket::where('user_id', $user->id)->orderBy('created_at', 'desc')->get();
+        $leaveHistory = LeaveApplication::where('user_id', $user->id)->orderBy('created_at', 'desc')->get();
+
+        return Inertia::render('Personnellocator/UserDashboard', [
+            'consumedSeconds' => $consumedSeconds,
+            'remainingSeconds' => $remainingSeconds,
+            'activeTrip' => $activeTrip,
+            'locatorHistory' => $locatorHistory,
+            'ticketHistory' => $ticketHistory,
+            'leaveHistory' => $leaveHistory,
+            'user' => $user
+        ]);
     }
+// PersonnelLocatorController.php
 
-    /**
-     * Calculate and track personal travel time
-     */
-    private function trackPersonalTime(string $departure, string $arrival): UserPersonalLocatorTime
+public function storeTripTicket(Request $request)
+{
+    // The frontend is now sending matching keys
+    $validated = $request->validate([
+        'driver_name' => 'required|string',
+        'vehicle_plate' => 'required|string', // Matches 'vehicle_plate' from React
+        'date_of_travel' => 'required|date',  // Matches 'date_of_travel' from React
+        'destination' => 'required|string',
+        'purpose' => 'required|string',
+        'passengers' => 'required|string',
+    ]);
+
+    VehicleTripTicket::create([
+        'user_id' => Auth::id(),
+        'driver_name' => $validated['driver_name'],
+        'vehicle_plate' => $validated['vehicle_plate'],
+        'date_of_travel' => $validated['date_of_travel'],
+        'destination' => $validated['destination'],
+        'purpose' => $validated['purpose'],
+        'passengers' => $validated['passengers'],
+        'departure_time' => now(),
+        'status' => 'pending' // This ensures it shows up in Admin Pending tab
+    ]);
+
+    return redirect()->back()->with('success', 'Trip Ticket Request Submitted.');
+}
+public function store(Request $request)
     {
-        $user = Auth::user();
-        $currentMonth = now()->format('Y-m');
-
-        // Parse times
-        $departureTime = Carbon::createFromFormat('H:i', $departure);
-        $arrivalTime = Carbon::createFromFormat('H:i', $arrival);
-
-        // Handle cross-midnight trips
-        if ($arrivalTime->lessThanOrEqualTo($departureTime)) {
-            $arrivalTime->addDay();
+        // 1. Check for Active Trip
+        if (LocatorSlip::where('user_id', Auth::id())->whereNull('time_arrival')->exists()) {
+            return redirect()->back()->with('error', 'You have an ongoing trip. Please mark it as arrived first.');
         }
 
-        // Calculate duration in seconds (absolute value to ensure positive)
-        $durationSeconds = abs($departureTime->diffInSeconds($arrivalTime, false));
+        $validated = $request->validate([
+            'purpose' => 'required|string',
+            'destination' => 'required|string',
+            'nature_of_travel' => 'required|string|in:Official,Personal',
+            'representative_signature' => 'nullable|string',
+        ]);
 
-        // Get or create time record for this month
-        $timeRecord = UserPersonalLocatorTime::getOrCreateForMonth($user->id, $currentMonth);
+        $type = strtolower($validated['nature_of_travel']);
+        $isOfficial = $validated['nature_of_travel'] === 'Official';
 
-        // Add the time consumed
-        $timeRecord->addTime($durationSeconds);
+        // --- ENFORCE 4-HOUR LIMIT FOR PERSONAL TRAVEL ---
+        if (!$isOfficial) {
+            $currentMonth = now()->format('Y-m');
+            $timeRecord = UserPersonalLocatorTime::getOrCreateForMonth(Auth::id(), $currentMonth);
+            
+            // 4 Hours = 14400 Seconds
+            if ($timeRecord->time_consumed_seconds >= 14400) {
+                return redirect()->back()->with('error', 'Monthly personal allowance (4 hours) exceeded. Please file a Leave Form.');
+            }
+        }
 
-        // Refresh to get updated values
-        $timeRecord->refresh();
+        $slip = LocatorSlip::create([
+            'user_id' => Auth::id(),
+            'date' => now()->toDateString(),
+            'time_departure' => now(), 
+            'purpose' => $validated['purpose'],
+            'destination' => $validated['destination'],
+            'type' => $type,
+            // Personal is auto-approved ONLY if within limit (checked above), Official needs approval
+            // Change to this:
+            'status' => 'pending',
+            'representative' => $validated['representative_signature'] ?? null,
+        ]);
 
-        return $timeRecord;
+        $msg = $isOfficial 
+            ? 'Locator Slip submitted for approval.' 
+            : 'Personal travel started. Timer running.';
+
+        return redirect()->back()->with('success', $msg);
+    }
+public function markArrived($id)
+    {
+        $slip = LocatorSlip::where('user_id', Auth::id())->findOrFail($id);
+        
+        // Validation: Cannot arrive if pending
+        if ($slip->status === 'pending') {
+            return redirect()->back()->with('error', 'Cannot mark arrival. Trip is still pending approval.');
+        }
+
+        if ($slip->time_arrival) {
+            return redirect()->back()->with('error', 'Trip already ended.');
+        }
+
+        $arrival = now();
+        $slip->update(['time_arrival' => $arrival]);
+
+        // Logic: Calculate Duration if Personal
+        if ($slip->type === 'personal') {
+            $departure = Carbon::parse($slip->time_departure);
+            $durationSeconds = $departure->diffInSeconds($arrival);
+
+            $currentMonth = now()->format('Y-m');
+            $timeRecord = UserPersonalLocatorTime::getOrCreateForMonth(Auth::id(), $currentMonth);
+            $timeRecord->addTime($durationSeconds);
+
+            // CHECK 4-HOUR LIMIT
+            if ($timeRecord->isOvertime()) {
+                $excessMinutes = round($timeRecord->getOvertimeSeconds() / 60);
+                return redirect()->back()->with('warning', 
+                    "Arrival recorded. NOTE: You exceeded allowance by {$excessMinutes} mins. Please file a Leave Form.");
+            }
+        }
+
+        // --- EMAIL NOTIFICATION LOGIC ---
+        $this->sendArrivalNotification($slip);
+
+        return redirect()->back()->with('success', 'Arrival recorded. Admin notified.');
+    }
+
+  private function sendArrivalNotification($slip) {
+        $user = Auth::user();
+        $recipients = [
+            $user->email, 
+            'eduarddonor12@gmail.com', // Assistant Admin
+            'elolegend1@gmail.com'     // Chief Admin
+        ];
+
+        $subject = "Trip Completed: {$user->name}";
+        $body = "Employee: {$user->name}\nDestination: {$slip->destination}\nDeparture: {$slip->time_departure}\nArrival: " . now();
+
+        Mail::raw($body, function($message) use ($recipients, $subject) {
+            $message->to($recipients)->subject($subject);
+        });
     }
 }

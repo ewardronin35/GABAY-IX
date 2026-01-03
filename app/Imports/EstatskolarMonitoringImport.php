@@ -2,65 +2,144 @@
 
 namespace App\Imports;
 
-use App\Models\Estatskolar;
-use App\Models\EstatskolarMonitoring;
-use Maatwebsite\Excel\Concerns\ToModel;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use App\Models\ScholarEnrollment;
+use App\Models\AcademicRecord;
+use App\Models\AcademicYear;
+use App\Models\Program;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithStartRow;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Carbon\Carbon;
 
-class EstatskolarMonitoringImport implements ToModel, WithHeadingRow
+class EstatskolarMonitoringImport implements ToCollection, WithStartRow, WithChunkReading, ShouldQueue
 {
-    /**
-     * This tells the importer that the headers are on Row 10.
-     */
-    public function headingRow(): int
+    private $programId;
+
+    public function __construct($userId)
     {
-        return 10;
+        $program = Program::firstOrCreate(['program_name' => 'Estatistikolar']);
+        $this->programId = $program->id;
     }
 
-    public function model(array $row)
+    // Data starts on Row 11 based on your file structure
+    public function startRow(): int
     {
-        if (!isset($row['award_number']) || empty($row['award_number'])) {
-            Log::warning('[Monitoring Import] Skipping row. Missing award_number.', $row);
-            return null;
-        }
+        return 11;
+    }
 
-        $scholar = Estatskolar::where('award_number', $row['award_number'])->first();
+    public function chunkSize(): int
+    {
+        return 500;
+    }
 
-        if (!$scholar) {
-            Log::warning('[Monitoring Import] Estatskolar not found for award number: ' . $row['award_number']);
-            return null;
-        }
+    public function collection(Collection $rows)
+    {
+        $importedCount = 0;
         
-        // This will now find the *first* record for a scholar and update it.
-        // It will overwrite existing data from other years.
-        EstatskolarMonitoring::updateOrCreate(
+        // Setup AY (You might need to make this dynamic if file covers multiple years)
+        $ay = AcademicYear::firstOrCreate(['name' => '2024-2025']);
+
+        foreach ($rows as $row) {
+            try {
+                // MAPPING BASED ON EXCEL COLUMNS (0-indexed)
+                // Col 3: AWARD NUMBER (Key Identifier)
+                $awardNumber = $this->clean($row[3]);
+                
+                if (empty($awardNumber)) continue;
+
+                // 1. FIND ENROLLMENT
+                $enrollment = ScholarEnrollment::where('award_number', $awardNumber)
+                    ->where('program_id', $this->programId)
+                    ->first();
+
+                if (!$enrollment) {
+                    Log::warning("Estat E-2: No Enrollment found for Award Number: $awardNumber. Skipping.");
+                    continue;
+                }
+
+                // 2. PROCESS 1ST SEMESTER (Cols 8-14)
+                $this->updateSemesterRecord($enrollment, $ay->id, 1, [
+                    'year_level'   => $row[8],
+                    'status'       => $row[9],
+                    'grant_amount' => $row[12], // CHED Payment Amount
+                    'payment_date' => $row[13],
+                    'osds_amount'  => $row[10], // Store in meta or specific column
+                ]);
+
+                // 3. PROCESS 2ND SEMESTER (Cols 15-21)
+                // Only if there is data (e.g. status or amount exists)
+                if (!empty($row[16]) || !empty($row[19])) {
+                    $this->updateSemesterRecord($enrollment, $ay->id, 2, [
+                        'year_level'   => $row[15],
+                        'status'       => $row[16],
+                        'grant_amount' => $row[19], // CHED Payment Amount
+                        'payment_date' => $row[20],
+                        'osds_amount'  => $row[17],
+                    ]);
+                }
+
+                // 4. UPDATE REMARKS (Col 22)
+                if (!empty($row[22])) {
+                    $enrollment->update(['remarks' => $this->clean($row[22])]);
+                }
+
+                $importedCount++;
+
+            } catch (\Exception $e) {
+                Log::error("Estat E-2 Error Row: " . json_encode($row) . " | " . $e->getMessage());
+            }
+        }
+
+        Log::info("Estatistikolar E-2 Chunk Imported: {$importedCount} records.");
+    }
+
+    private function updateSemesterRecord($enrollment, $ayId, $semId, $data)
+    {
+        $status = strtoupper($this->clean($data['status']));
+        $amount = $this->cleanMoney($data['grant_amount']);
+        $yearLevel = $this->parseYearLevel($data['year_level']);
+
+        AcademicRecord::updateOrCreate(
             [
-                'estatskolar_id' => $scholar->id,
+                'scholar_enrollment_id' => $enrollment->id,
+                'academic_year_id' => $ayId,
+                'semester_id' => $semId
             ],
             [
-                // These keys match your Excel headers (e.g., "CURRENT YEAR LEVEL 1ST SEM, AY _____")
-                'current_year_level_1st_sem' => $row['current_year_level_1st_sem_ay_'] ?? null,
-                'status_1st_semester' => $row['status_1st_semester_ay_'] ?? null,
-                'osds_fund_release_amount_1st_semester' => $row['osds_fund_release_amount_1st_semester_ay_'] ?? null,
-                'osds_fund_release_date_1st_semester' => isset($row['osds_fund_release_date_1st_semester_ay_']) ? Date::excelToDateTimeObject($row['osds_fund_release_date_1st_semester_ay_']) : null,
-                'chedro_payment_amount_1st_semester' => $row['chedro_payment_amount_1st_semester_ay_'] ?? null,
-                'chedro_payment_date_1st_semester' => isset($row['chedro_payment_date_1st_semester_ay_']) ? Date::excelToDateTimeObject($row['chedro_payment_date_1st_semester_ay_']) : null,
-                'mode_of_payment_1st_semester' => $row['mode_of_payment_1st_semester_ay_'] ?? null,
-                
-                'current_year_level_2nd_sem' => $row['current_year_level_2nd_sem_ay_'] ?? null,
-                'status_2nd_semester' => $row['status_2nd_semester_ay_'] ?? null,
-                'osds_fund_release_amount_2nd_semester' => $row['osds_fund_release_amount_2nd_semester_ay_'] ?? null,
-                'osds_fund_release_date_2nd_semester' => isset($row['osds_fund_release_date_2nd_semester_ay_']) ? Date::excelToDateTimeObject($row['osds_fund_release_date_2nd_semester_ay_']) : null,
-                'chedro_payment_amount_2nd_semester' => $row['chedro_payment_amount_2nd_semester_ay_'] ?? null,
-                'chedro_payment_date_2nd_semester' => isset($row['chedro_payment_date_2nd_semester_ay_']) ? Date::excelToDateTimeObject($row['chedro_payment_date_2nd_semester_ay_']) : null,
-                'mode_of_payment_2nd_semester' => $row['mode_of_payment_2nd_semester_ay_'] ?? null,
-                
-                'remarks' => $row['remarks'] ?? null,
+                'year_level' => $yearLevel,
+                'grant_amount' => $amount,
+                // If you added an 'osds_amount' column to your DB, map it here:
+                // 'osds_amount' => $this->cleanMoney($data['osds_amount']),
             ]
         );
-        
-        return null; 
+
+        // Update Main Status if "Terminated", "Graduated", etc.
+        if (in_array($status, ['TERMINATED', 'GRADUATED', 'WAIVED', 'DEFERRED'])) {
+            $enrollment->update(['status' => $status]);
+        }
+    }
+
+    // --- HELPERS ---
+    private function clean($val) {
+        return (is_string($val) && trim($val) !== '') ? trim($val) : null;
+    }
+
+    private function cleanMoney($val) {
+        if (!$val) return 0;
+        return (float) str_replace([',', ' '], '', $val);
+    }
+
+    private function parseYearLevel($val) {
+        $val = strtoupper($this->clean($val));
+        if (is_numeric($val)) return (int)$val;
+        if (str_contains($val, '1')) return 1;
+        if (str_contains($val, '2')) return 2;
+        if (str_contains($val, '3')) return 3;
+        if (str_contains($val, '4')) return 4;
+        return 1;
     }
 }

@@ -53,6 +53,13 @@ class HEI extends Model
         return $this->belongsTo(City::class);
     }
 
+
+    public function region(): BelongsTo
+
+    {
+
+        return $this->belongsTo(Region::class); 
+    }
     /**
      * Get the district that this HEI belongs to.
      */

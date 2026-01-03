@@ -57,4 +57,9 @@ public function academicRecords(): HasMany
     {
         return $this->morphMany(Attachment::class, 'attachable');
     }
+
+    public function application_documents()
+    {
+        return $this->hasMany(ScholarApplicationDocument::class);
+    }
 }

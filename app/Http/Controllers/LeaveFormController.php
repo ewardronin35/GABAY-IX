@@ -10,7 +10,7 @@ class LeaveFormController extends Controller
 {
     public function index()
     {
-        return Inertia::render('PersonnelLocator/LeaveForm');
+        return Inertia::render('Personnellocator/LeaveForm');
     }
 
     public function store(Request $request)

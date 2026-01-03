@@ -47,7 +47,10 @@ class Scholar extends Model
     {
         return $this->hasOne(Address::class);
     }
-
+public function relatives()
+    {
+        return $this->hasMany(ScholarRelative::class);
+    }
     public function education(): HasOne
     {
         return $this->hasOne(Education::class);

@@ -6,7 +6,6 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Illuminate\Support\Facades\Log;
 use App\Models\Program;
 
-
 class MasterlistImport implements WithMultipleSheets
 {
     private $programId;
@@ -24,21 +23,20 @@ class MasterlistImport implements WithMultipleSheets
 
         $program = Program::find($this->programId);
         
-        // ✅ FIX: Only check program_name
-        $isTes = $program && str_contains($program->program_name, 'TES');
+        // Check if program is TES (Safe check for null and Upper case)
+        $isTes = $program && str_contains(strtoupper($program->program_name), 'TES');
 
         if ($isTes) {
+            // ✅ FIX: Only return index 0. 
+            // The new TesProfileImport now handles ALL columns (Profile + Billing) on the first sheet.
             return [
                 0 => new TesProfileImport($this->programId, $this->uploaderId),
-                1 => new TesFinancialImport($this->programId),
-                2 => new TesFinancialImport($this->programId),
             ];
         }
 
+        // ✅ FIX: Same for TDP. Only return index 0.
         return [
             0 => new TdpProfileImport($this->programId, $this->uploaderId),
-            1 => new TdpFinancialImport($this->programId),
-            2 => new TdpFinancialImport($this->programId),
         ];
     }
 }

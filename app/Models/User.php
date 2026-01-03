@@ -102,4 +102,17 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     return $this->hasMany(Batch::class, 'created_by_user_id');
 }
+
+public function locatorSlips(): HasMany
+{
+    return $this->hasMany(LocatorSlip::class);  
+}
+public function leaveApplications(): HasMany
+{
+    return $this->hasMany(LeaveApplication::class);  
+    }
+public function vehicleTripTickets(): HasMany
+{
+    return $this->hasMany(VehicleTripTicket::class);
+    }
 }

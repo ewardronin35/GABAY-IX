@@ -18,6 +18,7 @@ use App\Models\Region;
 use App\Models\Barangay;
 use App\Models\HEI;
 use App\Models\Course;
+use App\Models\Attachment;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -71,10 +72,12 @@ class TdpController extends Controller
  public function getTdpQuery(Request $request, string $searchKey = 'search'): Builder
     {
        $query = AcademicRecord::with([
+      'enrollment.scholar.address.region',   
+            'enrollment.scholar.address.province', 
             'enrollment.scholar.address.city',     
             'enrollment.scholar.address.district', 
             'enrollment.scholar.address.barangay', 
-            'enrollment.scholar.address', 
+            'enrollment.scholar.address',
             
             'enrollment.program',       
             'hei.province',             
@@ -109,8 +112,7 @@ class TdpController extends Controller
         
         return $query;
     }
-
-    public function index(Request $request): Response
+public function index(Request $request): Response
     {
         // 1. BASE QUERY (For Stats & Charts)
         $statsQuery = AcademicRecord::query()
@@ -118,441 +120,464 @@ class TdpController extends Controller
                 $q->where('program_name', 'like', '%TDP%');
             });
 
-        // Apply Global Filters
-        if ($request->input('academic_year')) {
-            $statsQuery->whereHas('academicYear', fn($ay) => $ay->where('name', $request->input('academic_year')));
+        // --- APPLY GLOBAL FILTERS TO STATS ---
+        // Academic & Record Filters
+        if ($v = $request->input('academic_year')) $statsQuery->whereHas('academicYear', fn($q) => $q->where('name', $v));
+        if ($v = $request->input('semester')) $statsQuery->where('semester_id', $v);
+        if ($v = $request->input('batch_no')) $statsQuery->where('batch_no', $v);
+        if ($v = $request->input('hei_id')) $statsQuery->where('hei_id', $v);
+        if ($v = $request->input('course_id')) $statsQuery->where('course_id', $v);
+
+        // Location Filters (Crucial for Report Generator)
+        if ($v = $request->input('region_id')) {
+            $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('region_id', $v));
         }
-        if ($request->input('semester')) {
-            $statsQuery->where('semester_id', $request->input('semester'));
+        if ($v = $request->input('province_id')) {
+            $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('province_id', $v));
         }
-        if ($request->input('batch_no')) {
-            $statsQuery->where('batch_no', $request->input('batch_no'));
+        if ($v = $request->input('city_id')) {
+            $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('city_id', $v));
         }
-        if ($request->input('hei_id')) {
-            $statsQuery->where('hei_id', $request->input('hei_id'));
-        }
-        if ($request->input('course_id')) {
-            $statsQuery->where('course_id', $request->input('course_id'));
+        if ($v = $request->input('district_id')) {
+            $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('district_id', $v));
         }
 
-        // 2. DATA FOR DROPDOWNS
-        $semesters = Semester::all()->map(fn($sem) => ['id' => $sem->id, 'name' => $sem->name])->toArray();
-        
-        $batches = AcademicRecord::whereHas('enrollment.program', function($q) {
-                $q->where('program_name', 'like', '%TDP%');
-            })
-            ->whereNotNull('batch_no')->where('batch_no', '!=', '')
-            ->distinct()->orderBy('batch_no', 'asc')->pluck('batch_no')->toArray();
-            
-        $heiList = HEI::select('id', 'hei_name')->orderBy('hei_name')->get();
-        $courses = Course::select('id', 'course_name')->orderBy('course_name')->get()->toArray();
-
-        // 3. CALCULATE STATISTICS
+        // 2. CALCULATE STATISTICS & CHARTS
         $totalScholars = (clone $statsQuery)->count();
+        
+        // Count Uniques
         $uniqueHeis = (clone $statsQuery)->distinct('hei_id')->count('hei_id');
         $uniqueCourses = (clone $statsQuery)->distinct('course_id')->count('course_id');
-        
         $uniqueProvinces = (clone $statsQuery)
             ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
             ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
             ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
-            ->distinct('addresses.province')
+            ->distinct('addresses.province') // Use string column if province_id is nullable
             ->count('addresses.province');
 
-        // 4. GENERATE CHARTS
+        // Chart: Sex
         $sexDistribution = (clone $statsQuery)
             ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
             ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
             ->selectRaw("
                 CASE 
-                    WHEN scholars.sex = 'M' THEN 'Male' 
-                    WHEN scholars.sex = 'F' THEN 'Female' 
+                    WHEN scholars.sex IN ('M', 'Male') THEN 'Male' 
+                    WHEN scholars.sex IN ('F', 'Female') THEN 'Female' 
                     ELSE 'Unknown' 
                 END as name, 
                 count(*) as value
             ")
-            ->groupBy('scholars.sex')
-            ->get()
-            ->values(); 
+            ->groupBy('name') // Group by the alias
+            ->get();
 
+        // Chart: Year Level
         $yearLevelDistribution = (clone $statsQuery)
-            ->selectRaw('year_level as name, count(*) as value')
-            ->whereNotNull('year_level')
+            ->selectRaw("COALESCE(year_level, 'Unknown') as name, count(*) as value")
             ->groupBy('year_level')
             ->orderBy('year_level')
-            ->get()
-            ->values();
+            ->get();
 
+        // Chart: Status
         $statusDistribution = (clone $statsQuery)
-            ->selectRaw("COALESCE(payment_status, 'Unpaid') as name, count(*) as value")
+            ->selectRaw("COALESCE(payment_status, 'Pending') as name, count(*) as value")
             ->groupBy('payment_status')
             ->orderByDesc('value')
-            ->get()
-            ->values();
+            ->get();
 
+        // Chart: Top HEIs
         $topHeis = (clone $statsQuery)
             ->join('heis', 'academic_records.hei_id', '=', 'heis.id')
             ->selectRaw('heis.hei_name as name, count(*) as value')
             ->groupBy('heis.hei_name')
             ->orderByDesc('value')
             ->limit(5)
-            ->get()
-            ->values();
+            ->get();
 
-        // 5. FETCH GRID DATA
-        $databaseEnrollments = $this->getTdpQuery($request, 'search_db')
-            ->paginate(10, ['*'], 'db_page')
-            ->withQueryString();
+        // Chart: Regions
+     $regionDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('regions', 'addresses.region_id', '=', 'regions.id')
+            // ✅ FIX: Prioritize Region Name, then Address Text, then Unknown
+            ->selectRaw("COALESCE(regions.name, addresses.region, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(regions.name, addresses.region, 'Unknown')"))
+            ->orderByDesc('value')
+            ->get();
+
+        // Chart: Provinces
+     $provinceDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('provinces', 'addresses.province_id', '=', 'provinces.id')
+            // ✅ FIX: Prioritize Province Name, then Address Text
+            ->selectRaw("COALESCE(provinces.name, addresses.province, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(provinces.name, addresses.province, 'Unknown')"))
+            ->orderByDesc('value')
+            ->limit(10)
+            ->get();
+
+            $courseDistribution = (clone $statsQuery)
+            ->join('courses', 'academic_records.course_id', '=', 'courses.id')
+            ->selectRaw("COALESCE(courses.course_name, 'Unknown') as name, count(*) as value")
+            ->groupBy('courses.course_name')
+            ->orderByDesc('value')
+            ->limit(10) // Top 10 Courses
+            ->get();
+
+        // Data Interpretation
+        $interpretation = "Based on current data, there are " . number_format($totalScholars) . " TDP grantees. ";
+        if ($topHeis->isNotEmpty()) {
+            $interpretation .= "The top institution is " . $topHeis->first()->name . " with " . $topHeis->first()->value . " grantees. ";
+        }
+        if ($provinceDistribution->isNotEmpty()) {
+            $interpretation .= "Geographically, " . $provinceDistribution->first()->name . " has the highest number of beneficiaries. ";
+        }
+        if ($statusDistribution->isNotEmpty()) {
+            $interpretation .= "Most records are marked as '" . $statusDistribution->first()->name . "'.";
+        }
+
+        // 3. DROPDOWNS & FILTER DATA
+        $semesters = Semester::select('id', 'name')->get();
+        $batches = AcademicRecord::whereHas('enrollment.program', fn($q) => $q->where('program_name', 'like', '%TDP%'))
+            ->whereNotNull('batch_no')->distinct()->orderBy('batch_no')->pluck('batch_no')->toArray();
+        $heiList = HEI::select('id', 'hei_name')->orderBy('hei_name')->get();
+        $courses = Course::select('id', 'course_name')->orderBy('course_name')->get()->toArray();
         
-        $masterlistEnrollments = $this->getTdpQuery($request, 'search_ml')
-            ->paginate(10, ['*'], 'ml_page')
-            ->withQueryString();
+        $regions = Region::select('id', 'name')->orderBy('name')->get();
+        $provinces = Province::select('id', 'name', 'region_id')->orderBy('name')->get();
+        $districts = District::select('id', 'name', 'province_id')->orderBy('name')->get();
+        $cities = City::select('id', 'name', 'province_id')->orderBy('name')->get();
+
+        // 4. FETCH GRID DATA
+        $databaseEnrollments = $this->getTdpQuery($request, 'search_db')->paginate(10, ['*'], 'db_page')->withQueryString();
+        $masterlistEnrollments = $this->getTdpQuery($request, 'search_ml')->paginate(10, ['*'], 'ml_page')->withQueryString();
         
-        $heiQuery = HEI::query()
-            ->whereHas('academicRecords', function ($q) use ($request) { 
-                $q->whereHas('enrollment.program', fn($eq) => $eq->where('program_name', 'like', '%TDP%'));
-                
-                $q->when($request->input('academic_year'), function ($sq, $ay_name) {
-                    return $sq->whereHas('academicYear', fn($ay) => $ay->where('name', $ay_name));
-                });
-            });
-            
-        $paginatedHeis = $heiQuery->paginate(10, ['*'], 'hei_page')->withQueryString();
-
-        // 6. FETCH VALIDATION DATA
-        $validationScholars = ScholarEnrollment::with([
-            'scholar', 
-            'program', 
-            'academicRecords' => function($q) {
-                $q->latest()->take(1)->with('billingRecord');
-            }
-        ])
-        ->whereHas('program', function($q) {
-            $q->where('program_name', 'like', '%TDP%'); 
-        })
-        ->when($request->input('search_validation'), function ($q, $search) {
-            $q->whereHas('scholar', function ($sub) use ($search) {
-                $sub->where('family_name', 'like', "%{$search}%")
-                    ->orWhere('given_name', 'like', "%{$search}%");
-            });
-        })
-        ->whereDoesntHave('academicRecords.billingRecord', function($q) {
-            $q->where('status', 'Validated');
-        })
-        ->paginate(10, ['*'], 'validation_page')
-        ->withQueryString();
-
-        $validationScholars->getCollection()->transform(function ($enrollment) {
-            $latest = $enrollment->academicRecords->first();
-            return [
-                'id' => $enrollment->id,
-                'award_number' => $enrollment->award_number,
-                'scholar' => $enrollment->scholar,
-                'program' => $enrollment->program,
-                'payment_status' => $latest?->billingRecord?->status ?? 'Pending',
-            ];
+        // HEI Grid Logic
+        $searchHei = $request->input('search_hei');
+        $batchFilter = $request->input('batch_no');
+        $heiQuery = HEI::query();
+        if ($searchHei) $heiQuery->where('hei_name', 'like', "%{$searchHei}%");
+        $heiQuery->whereHas('academicRecords', function ($q) use ($request, $batchFilter) { 
+            $q->whereHas('enrollment.program', fn($eq) => $eq->where('program_name', 'like', '%TDP%'));
+            if ($batchFilter && $batchFilter !== 'all') $q->where('batch_no', $batchFilter);
         });
+        $heiQuery->withCount(['enrollments' => function ($q) use ($batchFilter) {
+            $q->where('program_id', $this->tdpProgramId);
+            if ($batchFilter && $batchFilter !== 'all') {
+                $q->whereHas('academicRecords', fn($sq) => $sq->where('batch_no', $batchFilter));
+            }
+        }]);
+        $paginatedHeis = $heiQuery->orderBy('hei_name')->paginate(12, ['*'], 'hei_page')->withQueryString();
 
-        // 7. RETURN RESPONSE
-        return Inertia::render('Admin/Tdp/Index', [
+        // Validation Data
+        $validationScholars = ScholarEnrollment::with([
+            'scholar.address', 'program', 
+            'academicRecords' => fn($q) => $q->latest()->take(1)->with('billingRecord')
+        ])
+        ->whereHas('program', fn($q) => $q->where('program_name', 'like', '%TDP%'))
+        ->when($request->input('search_validation'), fn($q, $search) => 
+            $q->whereHas('scholar', fn($sub) => $sub->where('family_name', 'like', "%{$search}%")->orWhere('given_name', 'like', "%{$search}%"))
+        )
+        ->whereDoesntHave('academicRecords.billingRecord', fn($q) => $q->where('status', 'Validated'))
+        ->paginate(10, ['*'], 'validation_page')->withQueryString();
+
+        // 5. RETURN RESPONSE
+        return Inertia::render('Tdp/Index', [
             'paginatedHeis' => $paginatedHeis,
             'databaseEnrollments' => $databaseEnrollments,
             'enrollments' => $masterlistEnrollments,
             'validationScholars' => $validationScholars,
-
             'filters' => $request->all(),
+            
+            // Dropdowns
             'academicYears' => AcademicYear::pluck('name')->toArray(), 
             'semesters' => $semesters,
             'batches' => $batches,
             'heiList' => $heiList,
             'courses' => $courses,
+            'regions' => $regions,
+            'provinces' => $provinces,
+            'districts' => $districts,
+            'cities' => $cities,
             
+            // Report Data
             'statistics' => [
                 'totalScholars' => $totalScholars,
                 'uniqueHeis' => $uniqueHeis,
                 'uniqueProvinces' => $uniqueProvinces,
                 'uniqueCourses' => $uniqueCourses, 
             ],
-            
             'graphs' => [
                 'sexDistribution' => $sexDistribution,
                 'yearLevelDistribution' => $yearLevelDistribution,
                 'statusDistribution' => $statusDistribution,
                 'topHeis' => $topHeis,
-            ]
+                'courseDistribution' => $courseDistribution, // ✅ Added here
+                'regionDistribution' => $regionDistribution, // ✅ Added
+                'provinceDistribution' => $provinceDistribution, // ✅ Added
+            ],
+            'interpretation' => $interpretation, // ✅ Added
         ]);
     }
-
 public function bulkUpdate(Request $request): RedirectResponse
-{
-    // 1. CLEAN THE DATA
-    $cleanedData = [];
-    
-    if (!$request->has('enrollments') || !is_array($request->enrollments)) {
-        return redirect()->back()->withErrors(['enrollments' => 'No data provided for update.']);
-    }
-
-    foreach ($request->enrollments as $row) {
-        $cleanedRow = $row;
-
-        // Normalize Sex
-        if (isset($cleanedRow['sex'])) {
-            $sex = strtolower(trim($cleanedRow['sex']));
-            if ($sex === 'male' || $sex === 'm') $cleanedRow['sex'] = 'M';
-            elseif ($sex === 'female' || $sex === 'f') $cleanedRow['sex'] = 'F';
+    {
+        $cleanedData = [];
+        
+        if (!$request->has('enrollments') || !is_array($request->enrollments)) {
+            return redirect()->back()->withErrors(['enrollments' => 'No data provided for update.']);
         }
 
-        // Clean string values
-        foreach ($cleanedRow as $key => $value) {
-            if (is_string($value)) {
-                $value = trim($value);
-                if ($value === '') $value = null;
+        foreach ($request->enrollments as $row) {
+            $cleanedRow = $row;
+
+            if (isset($cleanedRow['sex'])) {
+                $sex = strtolower(trim($cleanedRow['sex']));
+                if ($sex === 'male' || $sex === 'm') $cleanedRow['sex'] = 'M';
+                elseif ($sex === 'female' || $sex === 'f') $cleanedRow['sex'] = 'F';
             }
-            $cleanedRow[$key] = $value;
+
+            foreach ($cleanedRow as $key => $value) {
+                // ✅ FIX: Prevent Array-to-String Conversion
+                if (is_array($value)) {
+                    $value = null; // Flatten or nullify arrays
+                } elseif (is_string($value)) {
+                    $value = trim($value);
+                    if ($value === '') $value = null;
+                }
+                $cleanedRow[$key] = $value;
+            }
+
+            if (!empty($cleanedRow['contact_no'])) {
+                $cleanedRow['contact_no'] = substr($cleanedRow['contact_no'], 0, 20);
+            }
+
+            $cleanedData[] = $cleanedRow;
         }
 
-        // Force truncate contact number
-        if (!empty($cleanedRow['contact_no'])) {
-            $cleanedRow['contact_no'] = substr($cleanedRow['contact_no'], 0, 20);
+        $validator = Validator::make(['enrollments' => $cleanedData], [
+            'enrollments' => 'required|array',
+            'enrollments.*.scholar_id' => 'nullable|integer|exists:scholars,id',
+            'enrollments.*.family_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
+            'enrollments.*.given_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator->errors());
         }
 
-        $cleanedData[] = $cleanedRow;
-    }
-
-    // 2. VALIDATE (Simplified for speed)
-    $validator = Validator::make(['enrollments' => $cleanedData], [
-        'enrollments' => 'required|array',
-        'enrollments.*.scholar_id' => 'nullable|integer|exists:scholars,id',
-        'enrollments.*.family_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
-        'enrollments.*.given_name' => 'required_without:enrollments.*.scholar_id|nullable|string|max:255',
-    ]);
-
-    if ($validator->fails()) {
-        Log::warning('Bulk update validation failed', $validator->errors()->toArray());
-        return redirect()->back()->withErrors($validator->errors());
-    }
-
-    // 3. PROCESS UPSERT
-    try {
-        DB::transaction(function () use ($cleanedData) {
-            foreach ($cleanedData as $row) {
-                
-                // Defaults
-                $defaults = [
-                    'family_name' => null, 'given_name' => null, 'middle_name' => null, 'extension_name' => null,
-                    'sex' => null, 'contact_no' => null, 'email_address' => null,
-                    'province' => null, 'city_municipality' => null, 'district' => null, 'zip_code' => null,
-                    'specific_address' => null, 'barangay' => null, 'award_no' => null, 'seq' => null,
-                    'app_no' => null, 'year_level' => null, 'batch' => null, 'validation_status' => null,
-                    'date_paid' => null, 'tdp_grant' => null, 'endorsed_by' => null,
-                    'billing_amount' => null, 'billing_status' => null, 'date_fund_request' => null,
-                    'date_sub_aro' => null, 'date_nta' => null, 'date_disbursed_to_hei' => null,
-                    // Keys for ID Lookup
-                    'hei_name' => null, 'hei_uii' => null, 'course_name' => null, 
-                    'semester' => null, 'academic_year' => null, 'region' => null
-                ];
-                $safeRow = array_merge($defaults, $row);
-                
-                $parseDate = fn($d) => $d ? Carbon::parse($d)->format('Y-m-d') : null;
-
-                // --- A. LOOKUP LOCATION IDs (Fix for "Region/Province/City/Brgy doesn't display") ---
-                $regionId = null;
-                if (!empty($safeRow['region'])) {
-                    $reg = Region::where('name', 'LIKE', "%{$safeRow['region']}%")->first();
-                    if ($reg) $regionId = $reg->id;
-                }
-
-                $provinceId = null;
-                if (!empty($safeRow['province'])) {
-                    $prov = Province::where('name', 'LIKE', "%{$safeRow['province']}%")->first();
-                    if ($prov) $provinceId = $prov->id;
-                }
-
-                $cityId = null;
-                if (!empty($safeRow['city_municipality'])) {
-                    $city = City::where('name', 'LIKE', "%{$safeRow['city_municipality']}%")->first();
-                    if ($city) $cityId = $city->id;
-                }
-
-                $districtId = null;
-                if (!empty($safeRow['district'])) {
-                    // Try finding district by name
-                    $dist = District::where('name', 'LIKE', "%{$safeRow['district']}%")->first();
-                    if ($dist) $districtId = $dist->id;
-                }
-
-                $barangayId = null;
-                if (!empty($safeRow['barangay'])) {
-                    // Best effort: Find barangay. If city is known, use it to narrow down.
-                    $bQuery = Barangay::where('barangay', 'LIKE', "%{$safeRow['barangay']}%");
-                    if ($cityId) $bQuery->where('cityID', $cityId);
-                    $brgy = $bQuery->first();
+        try {
+            DB::transaction(function () use ($cleanedData) {
+                foreach ($cleanedData as $row) {
                     
-                    // If we found one (or created one if you prefer), set ID
-                    if ($brgy) $barangayId = $brgy->id;
-                }
+                    $defaults = [
+                        'family_name' => null, 'given_name' => null, 'middle_name' => null, 'extension_name' => null,
+                        'sex' => null, 'contact_no' => null, 'email_address' => null,
+                        'province' => null, 'city_municipality' => null, 'district' => null, 'zip_code' => null,
+                        'specific_address' => null, 'barangay' => null, 'award_no' => null, 'seq' => null,
+                        'app_no' => null, 'year_level' => null, 'batch' => null, 'validation_status' => null,
+                        'date_paid' => null, 'tdp_grant' => null, 
+                        'billing_amount' => null, 'billing_status' => null, 'date_fund_request' => null,
+                        'date_sub_aro' => null, 'date_nta' => null, 'date_disbursed_to_hei' => null,
+                        'hei_name' => null, 'hei_uii' => null, 'course_name' => null, 
+                        'semester' => null, 'academic_year' => null, 'region' => null,
+                        
+                        // ✅ ADDED DEFAULTS FOR NEW FIELDS
+                        'student_id' => null, 
+                        'eligibility_equivalent' => null, 
+                    ];
+                    $safeRow = array_merge($defaults, $row);
+                    
+                    $parseDate = fn($d) => $d ? Carbon::parse($d)->format('Y-m-d') : null;
 
-                // --- B. Handle Scholar & Address ---
-                $scholar = null;
-                if (!empty($safeRow['scholar_id'])) {
-                    $scholar = Scholar::find($safeRow['scholar_id']);
-                    if ($scholar) {
-                        $scholar->update([
-                            'family_name' => $safeRow['family_name'],
-                            'given_name' => $safeRow['given_name'],
-                            'middle_name' => $safeRow['middle_name'],
-                            'extension_name' => $safeRow['extension_name'],
-                            'sex' => $safeRow['sex'],
-                            'contact_no' => $safeRow['contact_no'],
-                            'email_address' => $safeRow['email_address'],
-                        ]);
+                    // --- IDS LOOKUP ---
+                    $regionId = null;
+                    if (!empty($safeRow['region'])) {
+                        $reg = Region::where('name', 'LIKE', "%{$safeRow['region']}%")->first();
+                        if ($reg) $regionId = $reg->id;
                     }
-                } else {
-                    if ($safeRow['family_name'] && $safeRow['given_name']) {
-                        $scholar = Scholar::create([
-                            'family_name' => $safeRow['family_name'],
-                            'given_name' => $safeRow['given_name'],
-                            'middle_name' => $safeRow['middle_name'],
-                            'extension_name' => $safeRow['extension_name'],
-                            'sex' => $safeRow['sex'],
-                            'contact_no' => $safeRow['contact_no'],
-                            'email_address' => $safeRow['email_address'],
-                        ]);
+
+                    $provinceId = null;
+                    if (!empty($safeRow['province'])) {
+                        $prov = Province::where('name', 'LIKE', "%{$safeRow['province']}%")->first();
+                        if ($prov) $provinceId = $prov->id;
+                    }
+
+                    $cityId = null;
+                    if (!empty($safeRow['city_municipality'])) {
+                        $city = City::where('name', 'LIKE', "%{$safeRow['city_municipality']}%")->first();
+                        if ($city) $cityId = $city->id;
+                    }
+
+                    $districtId = null;
+                    if (!empty($safeRow['district'])) {
+                        $dist = District::where('name', 'LIKE', "%{$safeRow['district']}%")->first();
+                        if ($dist) $districtId = $dist->id;
+                    }
+
+                    $barangayId = null;
+                    if (!empty($safeRow['barangay'])) {
+                        $bQuery = Barangay::where('barangay', 'LIKE', "%{$safeRow['barangay']}%");
+                        if ($cityId) $bQuery->where('cityID', $cityId);
+                        $brgy = $bQuery->first();
+                        if ($brgy) $barangayId = $brgy->id;
+                    }
+
+                    // --- UPDATE SCHOLAR ---
+                    $scholar = null;
+                    if (!empty($safeRow['scholar_id'])) {
+                        $scholar = Scholar::find($safeRow['scholar_id']);
+                        if ($scholar) {
+                            $scholar->update([
+                                'family_name' => $safeRow['family_name'],
+                                'given_name' => $safeRow['given_name'],
+                                'middle_name' => $safeRow['middle_name'],
+                                'extension_name' => $safeRow['extension_name'],
+                                'sex' => $safeRow['sex'],
+                                'contact_no' => $safeRow['contact_no'],
+                                'email_address' => $safeRow['email_address'],
+                            ]);
+                        }
                     } else {
-                        continue; 
+                        if ($safeRow['family_name'] && $safeRow['given_name']) {
+                            $scholar = Scholar::create([
+                                'family_name' => $safeRow['family_name'],
+                                'given_name' => $safeRow['given_name'],
+                                'middle_name' => $safeRow['middle_name'],
+                                'extension_name' => $safeRow['extension_name'],
+                                'sex' => $safeRow['sex'],
+                                'contact_no' => $safeRow['contact_no'],
+                                'email_address' => $safeRow['email_address'],
+                            ]);
+                        } else {
+                            continue; 
+                        }
                     }
-                }
 
-                if ($scholar) {
-                    // Save IDs AND Text
-                    $scholar->address()->updateOrCreate(
-                        ['scholar_id' => $scholar->id],
+                    if ($scholar) {
+                        $scholar->address()->updateOrCreate(
+                            ['scholar_id' => $scholar->id],
+                            [
+                                'region_id' => $regionId,
+                                'province_id' => $provinceId,
+                                'city_id' => $cityId,
+                                'district_id' => $districtId,
+                                'barangay_id' => $barangayId,
+                                'region' => $safeRow['region'],
+                                'province' => $safeRow['province'],
+                                'town_city' => $safeRow['city_municipality'],
+                                'congressional_district' => $safeRow['district'],
+                                'barangay' => $safeRow['barangay'],
+                                'zip_code' => $safeRow['zip_code'],
+                                'specific_address' => $safeRow['specific_address'],
+                            ]
+                        );
+                    }
+
+                    // --- ENROLLMENT ---
+                    $ayAppliedId = null;
+                    if (!empty($safeRow['academic_year'])) {
+                        $ay = AcademicYear::where('name', $safeRow['academic_year'])->first();
+                        if ($ay) $ayAppliedId = $ay->id;
+                    }
+
+                    $enrollment = ScholarEnrollment::firstOrCreate(
+                        ['scholar_id' => $scholar->id, 'program_id' => $this->tdpProgramId],
                         [
-                            'region_id' => $regionId,
-                            'province_id' => $provinceId,
-                            'city_id' => $cityId,
-                            'district_id' => $districtId,
-                            'barangay_id' => $barangayId,
-                            
-                            // Fallback text values
-                            'region' => $safeRow['region'],
-                            'province' => $safeRow['province'],
-                            'town_city' => $safeRow['city_municipality'],
-                            'congressional_district' => $safeRow['district'],
-                            'barangay' => $safeRow['barangay'],
-                            'zip_code' => $safeRow['zip_code'],
-                            'specific_address' => $safeRow['specific_address'],
+                            'status' => 'active', 
+                            'award_number' => $safeRow['award_no'], 
+                            'application_number' => $safeRow['app_no'],
+                            'academic_year_applied_id' => $ayAppliedId
+                        ]
+                    );
+                    
+                    if (!$enrollment->wasRecentlyCreated) {
+                        $enrollment->update([
+                            'award_number' => $safeRow['award_no'],
+                            'application_number' => $safeRow['app_no'],
+                            'academic_year_applied_id' => $ayAppliedId
+                        ]);
+                    }
+
+                    // --- ACADEMIC RECORD ---
+                    $heiId = null;
+                    if (!empty($safeRow['hei_uii'])) {
+                        $hei = \App\Models\HEI::where('hei_code', $safeRow['hei_uii'])->first();
+                        if ($hei) $heiId = $hei->id;
+                    }
+                    if (!$heiId && !empty($safeRow['hei_name'])) {
+                        $hei = \App\Models\HEI::where('hei_name', $safeRow['hei_name'])->first();
+                        if ($hei) $heiId = $hei->id;
+                    }
+
+                    $courseId = null;
+                    if (!empty($safeRow['course_name'])) {
+                        $course = \App\Models\Course::where('course_name', $safeRow['course_name'])->first();
+                        if ($course) $courseId = $course->id;
+                    }
+
+                    $semesterId = null;
+                    if (!empty($safeRow['semester'])) {
+                        $sem = \App\Models\Semester::where('name', $safeRow['semester'])->first();
+                        if ($sem) $semesterId = $sem->id;
+                    }
+
+                    $academicYearId = $ayAppliedId;
+
+                    $academicRecord = null;
+                    if (!empty($safeRow['academic_record_id'])) {
+                        $academicRecord = AcademicRecord::find($safeRow['academic_record_id']);
+                    }
+
+                    $recordData = [
+                        'seq' => $safeRow['seq'],
+                        'year_level' => $safeRow['year_level'],
+                        'batch_no' => $safeRow['batch'],
+                        'payment_status' => $safeRow['validation_status'],
+                        'disbursement_date' => $parseDate($safeRow['date_paid']), 
+                        'grant_amount' => $safeRow['tdp_grant'],
+                        'hei_id' => $heiId,
+                        'course_id' => $courseId,
+                        'semester_id' => $semesterId,
+                        'academic_year_id' => $academicYearId,
+                        
+                        // ✅ SAVING NEW FIELDS
+                        'student_id' => $safeRow['student_id'],
+                        'eligibility_equivalent' => $safeRow['eligibility_equivalent'],
+                    ];
+
+                    if ($academicRecord) {
+                        $academicRecord->update($recordData);
+                    } else {
+                        $academicRecord = AcademicRecord::create(array_merge($recordData, [
+                            'scholar_enrollment_id' => $enrollment->id,
+                        ]));
+                    }
+
+                    // --- BILLING RECORD ---
+                    $academicRecord->billingRecord()->updateOrCreate(
+                        ['academic_record_id' => $academicRecord->id],
+                        [
+                            'billing_amount' => $safeRow['billing_amount'],
+                            'status' => $safeRow['billing_status'],
+                            'date_fund_request' => $parseDate($safeRow['date_fund_request']),
+                            'date_sub_aro' => $parseDate($safeRow['date_sub_aro']),
+                            'date_nta' => $parseDate($safeRow['date_nta']),
+                            'date_disbursed_hei' => $parseDate($safeRow['date_disbursed_to_hei']),
+                            'date_disbursed_grantee' => $parseDate($safeRow['date_paid']),
                         ]
                     );
                 }
+            });
 
-                // --- C. Handle Enrollment (Fix for "Academic Year Applied" & "App No") ---
-                
-                // 1. Lookup Academic Year ID
-                $ayAppliedId = null;
-                if (!empty($safeRow['academic_year'])) {
-                    $ay = AcademicYear::where('name', $safeRow['academic_year'])->first();
-                    if ($ay) $ayAppliedId = $ay->id;
-                }
+            return redirect()->back()->with('success', 'Masterlist updated successfully!');
 
-                // 2. Create/Update Enrollment
-                $enrollment = ScholarEnrollment::firstOrCreate(
-                    ['scholar_id' => $scholar->id, 'program_id' => 4], // 4 = TDP
-                    [
-                        'status' => 'active', 
-                        'award_number' => $safeRow['award_no'], 
-                        'application_number' => $safeRow['app_no'], // Fix: Save App No
-                        'academic_year_applied_id' => $ayAppliedId // Fix: Save AY Applied ID
-                    ]
-                );
-                
-                if (!$enrollment->wasRecentlyCreated) {
-                    $enrollment->update([
-                        'award_number' => $safeRow['award_no'],
-                        'application_number' => $safeRow['app_no'], // Fix: Update App No
-                        'academic_year_applied_id' => $ayAppliedId // Fix: Update AY ID
-                    ]);
-                }
-
-                // --- D. Lookup & Save Academic Record (HEI/Course/Sem/etc) ---
-                
-                // HEI Lookup
-                $heiId = null;
-                if (!empty($safeRow['hei_uii'])) {
-                    $hei = \App\Models\HEI::where('hei_code', $safeRow['hei_uii'])->first();
-                    if ($hei) $heiId = $hei->id;
-                }
-                if (!$heiId && !empty($safeRow['hei_name'])) {
-                    $hei = \App\Models\HEI::where('hei_name', $safeRow['hei_name'])->first();
-                    if ($hei) $heiId = $hei->id;
-                }
-
-                // Course Lookup
-                $courseId = null;
-                if (!empty($safeRow['course_name'])) {
-                    $course = \App\Models\Course::where('course_name', $safeRow['course_name'])->first();
-                    if ($course) $courseId = $course->id;
-                }
-
-                // Semester Lookup
-                $semesterId = null;
-                if (!empty($safeRow['semester'])) {
-                    $sem = \App\Models\Semester::where('name', $safeRow['semester'])->first();
-                    if ($sem) $semesterId = $sem->id;
-                }
-
-                // Academic Year Lookup (Record Level)
-                $academicYearId = $ayAppliedId; // Usually same as applied, or lookup again if row differs
-
-                $academicRecord = null;
-                if (!empty($safeRow['academic_record_id'])) {
-                    $academicRecord = AcademicRecord::find($safeRow['academic_record_id']);
-                }
-
-                $recordData = [
-                    'seq' => $safeRow['seq'],
-                    'year_level' => $safeRow['year_level'],
-                    'batch_no' => $safeRow['batch'],
-                    'payment_status' => $safeRow['validation_status'],
-                    'disbursement_date' => $parseDate($safeRow['date_paid']), 
-                    'grant_amount' => $safeRow['tdp_grant'],
-                    'hei_id' => $heiId,
-                    'course_id' => $courseId,
-                    'semester_id' => $semesterId,
-                    'academic_year_id' => $academicYearId,
-                ];
-
-                if ($academicRecord) {
-                    $academicRecord->update($recordData);
-                } else {
-                    $academicRecord = AcademicRecord::create(array_merge($recordData, [
-                        'scholar_enrollment_id' => $enrollment->id,
-                    ]));
-                }
-
-                // --- E. Handle Billing Record ---
-                $academicRecord->billingRecord()->updateOrCreate(
-                    ['academic_record_id' => $academicRecord->id],
-                    [
-                        'billing_amount' => $safeRow['billing_amount'],
-                        'status' => $safeRow['billing_status'],
-                        'date_fund_request' => $parseDate($safeRow['date_fund_request']),
-                        'date_sub_aro' => $parseDate($safeRow['date_sub_aro']),
-                        'date_nta' => $parseDate($safeRow['date_nta']),
-                        'date_disbursed_hei' => $parseDate($safeRow['date_disbursed_to_hei']),
-                        'date_disbursed_grantee' => $parseDate($safeRow['date_paid']),
-                    ]
-                );
-            }
-        });
-
-        return redirect()->back()->with('success', 'Masterlist updated successfully!');
-
-    } catch (\Exception $e) {
-        Log::error('Bulk Update Transaction Error: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'Failed to update records: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('Bulk Update Transaction Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to update records: ' . $e->getMessage());
+        }
     }
-}
     /**
      * Bulk destroy TDP records.
      * Deletes Academic Records based on IDs passed.
@@ -617,12 +642,11 @@ public function bulkUpdate(Request $request): RedirectResponse
             // --- END OF ADDED LINES ---
         ]);
 
-        return Inertia::render('Admin/Tdp/Partials/ShowScholar', [
+        return Inertia::render('Tdp/Partials/ShowScholar', [
             'scholar' => $scholar
         ]);
     }
-
-   public function showHei(Request $request, HEI $hei): Response
+    public function showHei(Request $request, HEI $hei): Response
     {
         $hei->load(['province', 'district']);
 
@@ -646,12 +670,23 @@ public function bulkUpdate(Request $request): RedirectResponse
             ->distinct()->pluck('course_id');
         
         $courses = Course::whereIn('id', $courseIds)->select('id', 'course_name')->get();
-        
+        $regions = Region::select('id', 'name')->orderBy('name')->get();
+        $provinces = Province::select('id', 'name', 'region_id')->orderBy('name')->get();
+        $districts = District::select('id', 'name', 'province_id')->orderBy('name')->get();
+        $cities = City::select('id', 'name', 'province_id')->orderBy('name')->get();
         $semesterIds = (clone $baseAcademicQuery)->whereNotNull('semester_id')->distinct()->pluck('semester_id');
         $semesters = Semester::whereIn('id', $semesterIds)->get(['id', 'name']);
+        $documents = Attachment::where('reference_id', $hei->id)
+            ->where('reference_table', 'heis')
+            ->latest()
+            ->get();
 
         // --- Get Main Data ---
         $query = ScholarEnrollment::with([
+            'scholar.address.region',
+            'scholar.address.province',
+            'scholar.address.city',
+            'scholar.address.district',
             'scholar.address', 
             'program', 
             'academicRecords.course', 
@@ -670,7 +705,7 @@ public function bulkUpdate(Request $request): RedirectResponse
             });
         });
         
-        // Filters
+        // Dropdown Filters
         $query->when($request->input('academic_year'), function ($q, $academic_year_name) {
             return $q->whereHas('academicRecords', fn($aq) => $aq->whereHas('academicYear', fn($ay) => $ay->where('name', $academic_year_name)));
         });
@@ -684,47 +719,110 @@ public function bulkUpdate(Request $request): RedirectResponse
             return $q->whereHas('academicRecords', fn($aq) => $aq->where('semester_id', $semester_id));
         });
 
+        // Location Filters
+        if ($v = $request->input('region_id')) { if($v !== 'all') $query->whereHas('scholar.address', fn($q) => $q->where('region_id', $v)); }
+        if ($v = $request->input('province_id')) { if($v !== 'all') $query->whereHas('scholar.address', fn($q) => $q->where('province_id', $v)); }
+        if ($v = $request->input('city_id')) { if($v !== 'all') $query->whereHas('scholar.address', fn($q) => $q->where('city_id', $v)); }
+        if ($v = $request->input('district_id')) { if($v !== 'all') $query->whereHas('scholar.address', fn($q) => $q->where('district_id', $v)); }
+
         $enrollments = $query->paginate(10)->withQueryString();
 
-        return Inertia::render('Admin/Tdp/Partials/ShowHei', [
+        return Inertia::render('Tdp/Partials/ShowHei', [
             'hei' => $hei,
             'enrollments' => $enrollments,
-            'filters' => $request->all('search', 'academic_year', 'batch_no', 'course_id', 'semester_id'),
+            'filters' => $request->all('search', 'academic_year', 'batch_no', 'course_id', 'semester_id', 'region_id', 'province_id', 'city_id', 'district_id'),
             'academicYears' => $this->academicYears, 
             'batches' => $batches,
             'courses' => $courses,
             'semesters' => $semesters,
+            'documents' => $documents,
+            'regions' => $regions,
+            'provinces' => $provinces,
+            'districts' => $districts,
+            'cities' => $cities,
         ]);
     }
     /**
      * Generate a PDF masterlist.
      */
-    public function generateMasterlistPdf(Request $request)
+    public function generateStatisticsPdf(Request $request)
     {
-        // --- REFACTORED QUERY (Masterlist PDF) ---
-        $mlQuery = AcademicRecord::with(['enrollment.scholar', 'hei', 'course'])
-            // NEW: Filter for TDP Program
-            ->whereHas('enrollment', function ($q) {
-                $q->where('program_id', $this->tdpProgramId);
-            });
+        set_time_limit(120); // 2 minutes max (should take seconds)
+        ini_set('memory_limit', '256M'); // Low memory usage
 
-        // REFACTORED SEARCH
-        $mlQuery->when($request->input('search_ml'), function ($q, $search) {
-            return $q->whereHas('enrollment', function ($enrollQuery) use ($search) {
-                $enrollQuery->where('award_number', 'like', "%{$search}%");
-            })->orWhereHas('enrollment.scholar', function ($scholarQuery) use ($search) {
-                $scholarQuery->where('family_name', 'like', "%{$search}%")
-                             ->orWhere('given_name', 'like', "%{$search}%");
-            });
-        });
+        // 1. BASE QUERY (Reuses your existing filters from the dashboard)
+        $statsQuery = AcademicRecord::query()
+            ->whereHas('enrollment.program', fn($q) => $q->where('program_name', 'like', '%TDP%'));
 
-        $tdpMasterlist = $mlQuery->get();
-        // TODO: Refactor 'exports.tdp-masterlist-pdf.blade.php' to use the new data structure
-        // (e.g., $record->enrollment->scholar->family_name)
-        $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', ['records' => $tdpMasterlist]);
-        return $pdf->download('tdp-masterlist.pdf');
+        // --- APPLY FILTERS ---
+        if ($v = $request->input('academic_year')) $statsQuery->whereHas('academicYear', fn($q) => $q->where('name', $v));
+        if ($v = $request->input('semester')) $statsQuery->where('semester_id', $v);
+        if ($v = $request->input('batch_no')) $statsQuery->where('batch_no', $v);
+        if ($v = $request->input('hei_id')) $statsQuery->where('hei_id', $v);
+        if ($v = $request->input('course_id')) $statsQuery->where('course_id', $v);
+
+        // Location Filters
+        if ($v = $request->input('region_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('region_id', $v));
+        if ($v = $request->input('province_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('province_id', $v));
+        if ($v = $request->input('city_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('city_id', $v));
+        if ($v = $request->input('district_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('district_id', $v));
+
+        // 2. GATHER STATISTICS (Aggregates Only)
+        $totalScholars = (clone $statsQuery)->count();
+        
+        // Sex Distribution
+        $sexDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->selectRaw("CASE WHEN scholars.sex IN ('M', 'Male') THEN 'Male' WHEN scholars.sex IN ('F', 'Female') THEN 'Female' ELSE 'Unknown' END as name, count(*) as value")
+            ->groupBy('name')->get();
+
+        // HEI Distribution (Top 20)
+        $heiDistribution = (clone $statsQuery)
+            ->join('heis', 'academic_records.hei_id', '=', 'heis.id')
+            ->selectRaw('heis.hei_name as name, count(*) as value')
+            ->groupBy('heis.hei_name')->orderByDesc('value')->limit(20)->get();
+
+        // Course Distribution (Top 20)
+        $courseDistribution = (clone $statsQuery)
+            ->join('courses', 'academic_records.course_id', '=', 'courses.id')
+            ->selectRaw("COALESCE(courses.course_name, 'Unknown') as name, count(*) as value")
+            ->groupBy('courses.course_name')->orderByDesc('value')->limit(20)->get();
+
+        // Region Distribution (FIXED: Uses 'Unknown' fallback)
+        $regionDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('regions', 'addresses.region_id', '=', 'regions.id')
+            ->selectRaw("COALESCE(regions.name, addresses.region, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(regions.name, addresses.region, 'Unknown')"))
+            ->orderByDesc('value')->get();
+
+        // Province Distribution (FIXED: Uses 'Unknown' fallback)
+        $provinceDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('provinces', 'addresses.province_id', '=', 'provinces.id')
+            ->selectRaw("COALESCE(provinces.name, addresses.province, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(provinces.name, addresses.province, 'Unknown')"))
+            ->orderByDesc('value')->limit(20)->get();
+
+        // 3. GENERATE PDF
+        $pdf = Pdf::loadView('exports.tdp-statistics-report', [
+            'generated_at' => now()->format('F d, Y h:i A'),
+            'filters' => $request->all(),
+            'totalScholars' => $totalScholars,
+            'sexDistribution' => $sexDistribution,
+            'heiDistribution' => $heiDistribution,
+            'courseDistribution' => $courseDistribution,
+            'regionDistribution' => $regionDistribution,
+            'provinceDistribution' => $provinceDistribution,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('TDP_Statistics_Report_' . now()->format('Y-m-d') . '.pdf');
     }
-
     /**
      * Generate an Excel masterlist.
      */
@@ -735,46 +833,7 @@ public function bulkUpdate(Request $request): RedirectResponse
         return Excel::download(new TdpMasterlistExport($request->input('search_ml')), 'tdp-masterlist.xlsx');
     }
 
-    /**
-     * Update data from the Handsontable grid.
-     * WARNING: This function is broken and must be rewritten.
-     */
-    public function updateTdpData(Request $request): RedirectResponse
-    {
-        // TODO: This function MUST be completely rewritten to work with the new normalized structure.
-        // The old logic is commented out to prevent errors.
-        
-        /*
-        $validated = $request->validate(['data' => 'required|array']);
-        DB::transaction(function () use ($validated) {
-            foreach ($validated['data'] as $row) {
-                // ... OLD BROKEN LOGIC ...
-            }
-        });
-        */
-
-        // TEMPORARY RESPONSE:
-        Log::error('updateTdpData is not yet refactored.');
-        return redirect()->back()->with('error', 'This save function is not yet implemented for the new database structure.');
-    }
-
-    /**
-     * Temporarily store a file uploaded via FilePond.
-     * This function is correct.
-     */
-    public function upload(Request $request): string
-    {
-        $request->validate(['file' => 'required|file|mimes:xlsx,xls,csv']);
-        return $request->file('file')->store('imports');
-    }
-
-    /**
-     * Handle the import request by dispatching a background job.
-     */
- /**
-     * Handle the import request by dispatching our unified job.
-     * UPDATED: Returns a JSON response for FilePond.
-     */
+    
     public function import(Request $request): JsonResponse
     {
         $request->validate([
@@ -795,38 +854,143 @@ public function bulkUpdate(Request $request): RedirectResponse
             'success' => 'Masterlist is being imported. You will be notified upon completion.'
         ]);
     }
-    /**
-     * Export Filtered Report to PDF
-     */
-    public function exportPdf(Request $request)
+    
+    public function generateStatisticsExcel(Request $request)
     {
-        // 1. Reuse the same query logic used in the grid
+        set_time_limit(120); 
+        ini_set('memory_limit', '256M');
+
+        // 1. BASE QUERY (Same as Dashboard)
+        $statsQuery = AcademicRecord::query()
+            ->whereHas('enrollment.program', fn($q) => $q->where('program_name', 'like', '%TDP%'));
+
+        // --- APPLY FILTERS ---
+        if ($v = $request->input('academic_year')) $statsQuery->whereHas('academicYear', fn($q) => $q->where('name', $v));
+        if ($v = $request->input('semester')) $statsQuery->where('semester_id', $v);
+        if ($v = $request->input('batch_no')) $statsQuery->where('batch_no', $v);
+        if ($v = $request->input('hei_id')) $statsQuery->where('hei_id', $v);
+        if ($v = $request->input('course_id')) $statsQuery->where('course_id', $v);
+
+        // Location Filters
+        if ($v = $request->input('region_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('region_id', $v));
+        if ($v = $request->input('province_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('province_id', $v));
+        if ($v = $request->input('city_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('city_id', $v));
+        if ($v = $request->input('district_id')) $statsQuery->whereHas('enrollment.scholar.address', fn($q) => $q->where('district_id', $v));
+
+        // 2. GATHER STATISTICS (Aggregates)
+        $totalScholars = (clone $statsQuery)->count();
+        
+        $sexDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->selectRaw("CASE WHEN scholars.sex IN ('M', 'Male') THEN 'Male' WHEN scholars.sex IN ('F', 'Female') THEN 'Female' ELSE 'Unknown' END as name, count(*) as value")
+            ->groupBy('name')->get();
+
+        $heiDistribution = (clone $statsQuery)
+            ->join('heis', 'academic_records.hei_id', '=', 'heis.id')
+            ->selectRaw('heis.hei_name as name, count(*) as value')
+            ->groupBy('heis.hei_name')->orderByDesc('value')->limit(50)->get();
+
+        $courseDistribution = (clone $statsQuery)
+            ->join('courses', 'academic_records.course_id', '=', 'courses.id')
+            ->selectRaw("COALESCE(courses.course_name, 'Unknown') as name, count(*) as value")
+            ->groupBy('courses.course_name')->orderByDesc('value')->limit(50)->get();
+
+        $regionDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('regions', 'addresses.region_id', '=', 'regions.id')
+            ->selectRaw("COALESCE(regions.name, addresses.region, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(regions.name, addresses.region, 'Unknown')"))
+            ->orderByDesc('value')->get();
+
+        $provinceDistribution = (clone $statsQuery)
+            ->join('scholar_enrollments', 'academic_records.scholar_enrollment_id', '=', 'scholar_enrollments.id')
+            ->join('scholars', 'scholar_enrollments.scholar_id', '=', 'scholars.id')
+            ->join('addresses', 'scholars.id', '=', 'addresses.scholar_id')
+            ->leftJoin('provinces', 'addresses.province_id', '=', 'provinces.id')
+            ->selectRaw("COALESCE(provinces.name, addresses.province, 'Unknown') as name, count(*) as value")
+            ->groupBy(DB::raw("COALESCE(provinces.name, addresses.province, 'Unknown')"))
+            ->orderByDesc('value')->limit(50)->get();
+
+        // 3. EXPORT TO EXCEL
+        // We pass the data array to the Export class
+        return Excel::download(new \App\Exports\TdpStatisticsExport([
+            'generated_at' => now()->format('F d, Y h:i A'),
+            'filters' => $request->all(),
+            'totalScholars' => $totalScholars,
+            'sexDistribution' => $sexDistribution,
+            'heiDistribution' => $heiDistribution,
+            'courseDistribution' => $courseDistribution,
+            'regionDistribution' => $regionDistribution,
+            'provinceDistribution' => $provinceDistribution,
+        ]), 'TDP_Statistics_Report_' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+
+public function exportPdf(Request $request)
+    {
+        // 1. Prevent Script Timeout
+        set_time_limit(300); // 5 minutes max
+        ini_set('memory_limit', '512M'); // Cap memory to avoid crashing the whole server
+
+        // 2. Reuse query but optimized
         $query = $this->getTdpQuery($request, 'search_db');
 
-        // 2. Get all records (without pagination)
+        // 3. SAFETY CHECK: Limit PDF rows
+        // PDF is for printing small batches. Excel is for full masterlists.
+        $count = $query->count();
+        $limit = 1500; // Safe limit for DomPDF
+
+        if ($count > $limit) {
+            return back()->with('error', "Too many records ($count). PDF export is limited to $limit rows to prevent server crashes. Please filter your data (e.g., by HEI or Batch) or use the 'Excel' export for the full list.");
+        }
+
+        // 4. MEMORY OPTIMIZATION: Remove unnecessary relationships
+        // getTdpQuery loads EVERYTHING. We strip the heavy ones not used in the PDF list.
+        $query->without([
+            'billingRecord.validatedBy', 
+            'hei.province', 
+            'hei.district', 
+            'hei.city', 
+            'enrollment.scholar.address.region',
+            'enrollment.scholar.address.province',
+            'enrollment.scholar.address.city',
+            'enrollment.scholar.address.district',
+            'enrollment.scholar.address.barangay',
+        ]);
+        
+        // Only load the light text-based address relation if needed
+        $query->with(['enrollment.scholar.address']); 
+
         $records = $query->get();
 
         if ($records->isEmpty()) {
             return back()->with('error', 'No records found to export.');
         }
 
-        // 3. Generate PDF
-        // Note: Ensure 'exports.tdp-masterlist-pdf' view exists
+        // 5. Generate PDF
         $pdf = Pdf::loadView('exports.tdp-masterlist-pdf', [
             'records' => $records,
             'generated_at' => now()->format('F d, Y h:i A'),
             'filters' => $request->all()
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('legal', 'landscape');
 
         return $pdf->download('TDP_Report_' . now()->format('Y-m-d_His') . '.pdf');
     }
-
     /**
      * Export Filtered Report to Excel
      */
     public function exportExcel(Request $request)
     {
-        // Pass the full Request object so TdpMasterlistExport receives an Illuminate\Http\Request
-        return Excel::download(new TdpMasterlistExport($request), 'TDP_Report_' . now()->format('Y-m-d_His') . '.xlsx');
+        set_time_limit(0);
+        ini_set('memory_limit', '-1');
+
+        // 1. Get Query Builder (don't execute ->get() here, the Export class handles chunks)
+        $query = $this->getTdpQuery($request, 'search_db');
+
+        // 2. Pass Query to Export Class
+        return Excel::download(new TdpMasterlistExport($query), 'TDP_Report_' . now()->format('Y-m-d_His') . '.xlsx');
     }
 }

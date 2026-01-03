@@ -240,7 +240,7 @@
             <table class="header-table">
                 <tr>
                     <td class="header-left">
-                        <img src="{{ public_path('Logo2.png') }}" class="logo-bp" alt="Bagong Pilipinas">
+                    <img src="{{ public_path('images/unifast logo.png') }}" class="logo-unifast" alt="UniFAST">
                         <img src="{{ public_path('images/ched-logo.png') }}" class="logo-ched" alt="CHED">
                     </td>
                     
@@ -251,14 +251,18 @@
                     </td>
 
                     <td class="header-right">
-                        <img src="{{ public_path('images/unifast logo.png') }}" class="logo-unifast" alt="UniFAST">
-                    </td>
+                       
+                    
+                                            <img src="{{ public_path('Logo2.png') }}" class="logo-bp" alt="Bagong Pilipinas">
+    
+                
+                </td>
                 </tr>
             </table>
 
             <div class="title-section">
-                <div class="program-title">TULONG DUNONG PROGRAM UNDER THE TERTIARY EDUCATION SUBSIDY</div>
-                <div class="program-sub">(TDP-TES)</div>
+                <div class="program-title">TULONG DUNONG PROGRAM</div>
+                <div class="program-sub">TDP</div>
                 <div class="noa-title">NOTICE OF AWARD (NOA)</div>
             </div>
 
