@@ -42,14 +42,14 @@ import {
     ServerCog,
     Database,
     HandCoins,
-    FileCheck,    ClipboardList,
+    ClipboardList,
     ListChecks, 
     Eye,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const footerNavItems: NavItem[] = [
-    
+    // ...
 ];
 
 
@@ -78,6 +78,13 @@ const unifastRcNavItems: NavItem[] = [
 // Items for 'Super Admin' (routes often prefixed with 'superadmin.')
 const superAdminNavItems: NavItem[] = [
   
+    {           
+                                        title: 'Validation',
+                                        href: route('unifastrc.validation.index'),
+                                        icon: ClipboardList,
+                                                                                isActive: route().current('unifastrc.validation.index'),
+
+                                    },
     {
         title: 'Scholarship Database',
         icon: Database,
@@ -93,17 +100,7 @@ const superAdminNavItems: NavItem[] = [
                 href: route('superadmin.stufaps.index'),
                 isActive: route().current('superadmin.stufaps.index'),
             },
-              {
-                title: 'MSRS',
-                href: route('superadmin.stufaps.index'),
-                isActive: route().current('superadmin.stufaps.index'),
-            },
-            
-            {
-                title: 'CSMP',
-                href: route('superadmin.stufaps.index'),
-                isActive: route().current('superadmin.stufaps.index'),
-            },
+           
             {
                 title: 'Estatskolar',
                 href: route('superadmin.estatskolar.index'),
@@ -236,16 +233,7 @@ const chiefNavItems: NavItem[] = [
         icon: Eye,
         isActive: route().current('management.financial.*'),
     },
-  {
-        title: 'Travel Approvals',
-        // ✨ POINTS TO NEW APPROVALS ROUTE
-        href: route('travel-orders.approvals'), 
-        icon: FileCheck,
-        isActive: route().current('travel-orders.approvals'),
-    },
 ];
-
-
 
 const rdNavItems: NavItem[] = [
     {
@@ -253,13 +241,6 @@ const rdNavItems: NavItem[] = [
         href: route('management.financial.all-requests'),
         icon: Eye,
         isActive: route().current('management.financial.*'),
-    },
-   {
-        title: 'Travel Approvals',
-        // ✨ POINTS TO NEW APPROVALS ROUTE
-        href: route('travel-orders.approvals'), 
-        icon: FileCheck,
-        isActive: route().current('travel-orders.approvals'),
     },
 ];
 const budgetNavItems: NavItem[] = [
@@ -270,13 +251,12 @@ const budgetNavItems: NavItem[] = [
         isActive: route().current('budget.dashboard'),
     },
   
-    
+    // ✨ ADD THIS NEW LINK
     {
-        title: 'Travel Approvals',
-        // ✨ POINTS TO NEW APPROVALS ROUTE
-        href: route('travel-orders.approvals'), 
-        icon: FileCheck,
-        isActive: route().current('travel-orders.approvals'),
+        title: 'All Requests',
+        href: route('budget.all-requests'),
+        icon: Files,
+        isActive: route().current('budget.all-requests'),
     },
 ];
 
@@ -294,11 +274,12 @@ const cashierNavItems: NavItem[] = [
     // The "Reports" link is removed because it is now a tab
     // inside the "Requests & Reports" page.
 ];
-
-    export default function AppSidebar() { // Changed from export function AppSidebar()
+// --- APP SIDEBAR COMPONENT ---
+export default function AppSidebar() { // Changed from export function AppSidebar()
     // const user = auth.user; // We can use auth.user directly
-    const { auth, ziggy } = usePage<PageProps>().props;
-    
+const { auth, ziggy } = usePage<PageProps>().props;
+
+    // ✨ 2. FIX: Move commonNavItems INSIDE the component, after usePage().
     const commonNavItems: NavItem[] = [
         {
             title: 'Dashboard',
@@ -307,37 +288,65 @@ const cashierNavItems: NavItem[] = [
             isActive: route().current('dashboard'),
         },
         {
-    title: 'Financial Track',
-    icon: HandCoins,
-    href: route('financial.index'), // Points directly to the page now
-    isActive: route().current('financial.index'), // Highlights when on this page
-    },
-        {
+            title: 'Financial Tracking',
+            icon: HandCoins,
+            href: '#', 
+            isActive: route().current('financial.index'), 
+            children: [
+                {
+                    title: 'All Requests',
+                    href: route('financial.index'), 
+                    // 'ziggy' is now correctly defined from the hook above
+                    isActive: route().current('financial.index') && !ziggy.query.tab,
+                },
+                {
+                    title: 'Submit Request',
+                    href: route('financial.index', { tab: 'create_new' }), 
+                    isActive: route().current('financial.index', { tab: 'create_new' }),
+                },
+            ],
+        },
+            {
         title: 'Travel Management',
         icon: Plane,
-        href: '#', 
-        // Keep the parent menu open if any of the child routes are active
-        isActive: route().current('travel-orders.*') || route().current('travel-claims.*'),
+        href: '#',
         children: [
             {
-                title: 'My Requests', // The Dashboard/List View
-                href: route('travel-orders.index'),
-                isActive: route().current('travel-orders.index'),
-            },
-            {
-                title: 'Create Travel Order', // The 3-Step Wizard
+                title: 'Request Authority',
                 href: route('travel-orders.create'),
                 isActive: route().current('travel-orders.create'),
             },
             {
-                title: 'Create Travel Reimbursements', // Reimbursements
-                href: route('travel-claims.create'), 
+                title: 'My Travel Claims',
+                href: route('travel-claims.create'), // Your existing claims page
                 isActive: route().current('travel-claims.*'),
             },
-                ],
-        },
-    
-    
+            {
+    title: 'New Travel Request',
+    isActive: route().current('travel.create'),
+    icon: Plane,
+}
+        ],
+    },
+    {
+        title: 'Personnel Locator',
+        icon: FileText,
+        isActive: route().current('personnel-locator.*') || route().current('leave-form.*'),
+        children: [
+            {
+                title: 'Personnel Locator Form',
+                href: route('personnel-locator.index'),
+                isActive: route().current('personnel-locator.index'),
+            },
+            {
+                title: 'Leave Form',
+                href: route('leave-form.index'),
+                isActive: route().current('leave-form.*'),
+            },
+        ],
+    },
+
+
     ];
     // --- FIX: Correctly get roles and determine primary role ---
     // Ensure roles is treated as an array, even if undefined/null initially
@@ -345,7 +354,6 @@ const cashierNavItems: NavItem[] = [
     const userRoles: string[] = Array.isArray(rawRoles)
         ? (rawRoles as any[]).map((r) => (typeof r === 'string' ? r : r?.name ?? ''))
         : [];
-
     // Use the first role for the switch logic, handle cases where roles might be empty
     const primaryRole = userRoles.length > 0 ? userRoles[0] : null; 
 
@@ -360,12 +368,14 @@ const cashierNavItems: NavItem[] = [
             finalNavItems = [
                 ...finalNavItems,
                 ...superAdminNavItems,
-             
+                ...accountantNavItems,
+                 ...scholarNavItems,
+                 ...budgetNavItems,
                 
-                
+                // ... potentially add others like accountantNavItems if needed
             ];
             break;
-        case 'Chief Education Program Specialist':
+        case 'Chief':
             // Chief sees common items + their own
             finalNavItems = [...finalNavItems, ...chiefNavItems];
             break;
@@ -384,8 +394,8 @@ const cashierNavItems: NavItem[] = [
             finalNavItems = [...finalNavItems, ...scholarNavItems];
             break;
 
-        case 'Accounting': 
-
+        case 'Accounting': // Example of another role
+            // Accountant sees common items + their own
             finalNavItems = [...finalNavItems, ...accountantNavItems];
             break;
 
@@ -398,7 +408,9 @@ const cashierNavItems: NavItem[] = [
             
         
         
-        
+        // Add more roles as needed
+        // default:
+        // User has no special role, they just see common items
     }
 
     return (
